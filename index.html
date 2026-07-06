@@ -69,7 +69,7 @@
 <div id="app">
 
   <div id="topbar">
-    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v5</span></span>
+    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v6</span></span>
     <button class="btn" id="btnPhoto">&#128247; Photo / Image</button>
     <button class="btn" id="btnOpenProj">&#128194; Open Project</button>
     <button class="btn" id="btnUndo" title="Undo (Ctrl+Z)">&#8630; Undo</button>
@@ -112,6 +112,7 @@
   <img id="exportImg" alt="Exported plan">
   <div class="row">
     <a class="btn primary" id="exportDownload" download="block-plan-marked.png">&#11015; Download PNG</a>
+    <button class="btn" id="exportPdf">&#128196; PDF</button>
     <button class="btn" id="exportShare" style="display:none">&#8682; Share&#8230;</button>
     <button class="btn" id="exportClose">Close</button>
   </div>
@@ -823,6 +824,56 @@ document.getElementById("exportShare").onclick = () => {
   navigator.share({ files:[f] }).catch(() => {});
 };
 document.getElementById("exportClose").onclick = () => exportPanel.classList.remove("show");
+
+/* ================= PDF export (self-contained, no libraries) ================= */
+function canvasToPdfBlob(canvas) {
+  // Embed the canvas as a JPEG in a minimal single-page PDF (1 px = 1 pt).
+  const jpegB64 = canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
+  const bin = atob(jpegB64);
+  const jpeg = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) jpeg[i] = bin.charCodeAt(i);
+  const W = canvas.width, H = canvas.height;
+  const enc = new TextEncoder();
+  const parts = [];
+  const offsets = [];
+  let pos = 0;
+  function push(x) { const b = typeof x === "string" ? enc.encode(x) : x; parts.push(b); pos += b.length; }
+  function beginObj() { offsets.push(pos); }
+  push("%PDF-1.4\n");
+  beginObj(); push("1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n");
+  beginObj(); push("2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n");
+  beginObj(); push("3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 " + W + " " + H + "] /Resources << /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >> endobj\n");
+  beginObj();
+  push("4 0 obj << /Type /XObject /Subtype /Image /Width " + W + " /Height " + H + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " + jpeg.length + " >> stream\n");
+  push(jpeg);
+  push("\nendstream endobj\n");
+  const content = "q " + W + " 0 0 " + H + " 0 0 cm /Im1 Do Q";
+  beginObj(); push("5 0 obj << /Length " + content.length + " >> stream\n" + content + "\nendstream endobj\n");
+  const xrefPos = pos;
+  let xref = "xref\n0 6\n0000000000 65535 f \n";
+  offsets.forEach(o => { xref += String(o).padStart(10, "0") + " 00000 n \n"; });
+  push(xref);
+  push("trailer << /Size 6 /Root 1 0 R >>\nstartxref\n" + xrefPos + "\n%%EOF");
+  return new Blob(parts, { type: "application/pdf" });
+}
+
+document.getElementById("exportPdf").onclick = () => {
+  const out = renderExportCanvas();
+  const blob = canvasToPdfBlob(out);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const name = "block-plan-marked-" + stamp + ".pdf";
+  const file = new File([blob], name, { type: "application/pdf" });
+  if (canShareFile(file)) {
+    navigator.share({ files: [file], title: name }).catch(() => {});
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+};
+
 
 /* ================= Boot ================= */
 resizeCanvas();
