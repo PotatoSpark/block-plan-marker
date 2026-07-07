@@ -79,7 +79,7 @@
 <div id="app">
 
   <div id="topbar">
-    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v9</span></span>
+    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v10</span></span>
     <button class="btn" id="btnPhoto">&#128247; Photo</button>
     <button class="btn" id="btnOpenProj">&#128194; Open</button>
     <button class="btn" id="btnUndo" title="Undo (Ctrl+Z)">&#8630;</button>
@@ -165,23 +165,23 @@
 
 /* ================= Symbol definitions ================= */
 const TYPES = [
-  { id:"smoke",    tab:"fav",  label:"Smoke",        glyph:"circle",   text:"S",     color:"#d81e05", dashed:false },
-  { id:"csmoke",   tab:"fav",  label:"Conc Smoke",   glyph:"circle",   text:"S",     color:"#f4693f", dashed:true  },
-  { id:"thermal",  tab:"fav",  label:"Thermal",      glyph:"circle",   text:"T",     color:"#1b8a3f", dashed:false },
-  { id:"cthermal", tab:"fav",  label:"Conc Thermal", glyph:"circle",   text:"T",     color:"#63b76c", dashed:true  },
-  { id:"fip",      tab:"fav",  label:"FIP",          glyph:"widetext", text:"FIP",   color:"#c40000" },
-  { id:"fdcie",    tab:"fav",  label:"FDCIE",        glyph:"widetext", text:"FDCIE", color:"#c40000" },
-  { id:"mcp",      tab:"fav",  label:"MCP",          glyph:"sqtext",   text:"MCP",   color:"#c40000" },
-  { id:"wip",      tab:"fav",  label:"WIP",          glyph:"phone",    text:"",      color:"#c40000" },
-  { id:"sounder",  tab:"fav",  label:"Sounder",      glyph:"horn",     text:"",      color:"#e07b00" },
+  { id:"smoke",    tab:"fire", label:"Smoke",        glyph:"circle",   text:"S",     color:"#d81e05", dashed:false },
+  { id:"csmoke",   tab:"fire", label:"Conc Smoke",   glyph:"circle",   text:"S",     color:"#f4693f", dashed:true  },
+  { id:"thermal",  tab:"fire", label:"Thermal",      glyph:"circle",   text:"T",     color:"#1b8a3f", dashed:false },
+  { id:"cthermal", tab:"fire", label:"Conc Thermal", glyph:"circle",   text:"T",     color:"#63b76c", dashed:true  },
+  { id:"fip",      tab:"fire", label:"FIP",          glyph:"widetext", text:"FIP",   color:"#c40000" },
+  { id:"fdcie",    tab:"fire", label:"FDCIE",        glyph:"widetext", text:"FDCIE", color:"#c40000" },
+  { id:"mcp",      tab:"fire", label:"MCP",          glyph:"sqtext",   text:"MCP",   color:"#c40000" },
+  { id:"wip",      tab:"fire", label:"WIP",          glyph:"phone",    text:"",      color:"#c40000" },
+  { id:"sounder",  tab:"fire", label:"Sounder",      glyph:"horn",     text:"",      color:"#e07b00" },
   { id:"ows",      tab:"fire", label:"OWS",          glyph:"widetext", text:"OWS",   color:"#c40000" },
   { id:"vesda",    tab:"fire", label:"VESDA",        glyph:"circle",   text:"V",     color:"#7b1fa2" },
   { id:"io",       tab:"fire", label:"Interface",    glyph:"sqtext",   text:"IO",    color:"#546e7a" },
   { id:"hreel",    tab:"fire", label:"Hose Reel",    glyph:"hreel",    text:"",      color:"#c40000" },
   { id:"exting",   tab:"fire", label:"Extinguisher", glyph:"exting",   text:"",      color:"#c40000" },
-  { id:"exitl",    tab:"exit", label:"Exit Left",    glyph:"exit",     text:"◀ EXIT", color:"#1b8a3f" },
-  { id:"exit",     tab:"exit", label:"Exit",         glyph:"exit",     text:"EXIT",  color:"#1b8a3f" },
-  { id:"exitr",    tab:"exit", label:"Exit Right",   glyph:"exit",     text:"EXIT ▶", color:"#1b8a3f" },
+  { id:"exitl",    tab:"exit", label:"Exit Left",    glyph:"exit",     text:"EXIT",  arrow:"l", color:"#1b8a3f" },
+  { id:"exit",     tab:"exit", label:"Exit",         glyph:"exit",     text:"EXIT",  arrow:"",  color:"#1b8a3f" },
+  { id:"exitr",    tab:"exit", label:"Exit Right",   glyph:"exit",     text:"EXIT",  arrow:"r", color:"#1b8a3f" },
   { id:"db",       tab:"elec", label:"DB Board",     glyph:"db",       text:"",      color:"#111111" }
 ];
 const TYPE_MAP = {}; TYPES.forEach(t => TYPE_MAP[t.id] = t);
@@ -205,7 +205,7 @@ const TABS = [
   { id:"elec",   label:"Electrical" },
   { id:"markup", label:"Markup" }
 ];
-const PALETTE_COLORS = ["#d81e05", "#e07b00", "#1b8a3f", "#0057d8", "#7b1fa2", "#111111"];
+const PALETTE_COLORS = ["#d81e05", "#e07b00", "#f2c200", "#1b8a3f", "#00897b", "#0057d8", "#00a5c8", "#7b1fa2", "#d81b8c", "#6d4c41", "#757575", "#111111"];
 
 /* ================= State ================= */
 let img = null;
@@ -280,12 +280,22 @@ function drawSym(c, o, scale) {
   const col = o.color || t.color;
   const s = o.size * scale;
   const x = o.x * scale, y = o.y * scale;
+  const sx = o.fx ? -1 : 1, sy = o.fy ? -1 : 1;
   c.save();
   c.translate(x, y);
   c.rotate(((o.rot || 0)) * Math.PI / 180);
-  c.scale(o.fx ? -1 : 1, o.fy ? -1 : 1);
-  const lw = Math.max(1, s * 0.06);
-  c.lineWidth = lw;
+  c.scale(sx, sy);
+
+  // draws readable (never mirrored) text at local layout point (ox,oy); rotates with the symbol
+  function glyphText(txt, fs, ox, oy) {
+    c.save();
+    c.scale(sx, sy);
+    c.fillStyle = "#ffffff";
+    c.font = "bold " + fs + "px system-ui, sans-serif";
+    c.textAlign = "center"; c.textBaseline = "middle";
+    c.fillText(txt, sx * (ox || 0), sy * (oy || 0) + fs * 0.05);
+    c.restore();
+  }
 
   if (t.glyph === "circle") {
     const r = s / 2;
@@ -294,21 +304,50 @@ function drawSym(c, o, scale) {
     if (t.dashed) c.setLineDash([r * 0.35, r * 0.28]);
     c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); c.fill(); c.stroke();
     c.setLineDash([]);
+    if (t.text) glyphText(t.text, s * 0.55);
   } else if (t.glyph === "sqtext" || t.glyph === "widetext") {
     const w = (t.glyph === "sqtext" ? s : s * 2.3), h = s;
     c.fillStyle = col; c.strokeStyle = "#ffffff";
+    c.lineWidth = Math.max(1, s * 0.06);
     c.beginPath(); c.rect(-w / 2, -h / 2, w, h); c.fill(); c.stroke();
+    if (t.text) {
+      const fs = t.glyph === "sqtext"
+        ? (t.text.length > 2 ? s * 0.42 : s * 0.5)
+        : Math.min(s * 0.55, (s * 2.1) / t.text.length * 1.5);
+      glyphText(t.text, fs);
+    }
   } else if (t.glyph === "exit") {
     const w = s * 2.4, h = s * 1.1;
     c.fillStyle = col; c.strokeStyle = "#ffffff";
+    c.lineWidth = Math.max(1, s * 0.06);
     c.beginPath();
     if (c.roundRect) c.roundRect(-w / 2, -h / 2, w, h, s * 0.12); else c.rect(-w / 2, -h / 2, w, h);
     c.fill(); c.stroke();
+    const ah = h * 0.5;
+    let ox = 0;
+    if (t.arrow === "l") {
+      c.fillStyle = "#ffffff";
+      c.beginPath();
+      c.moveTo(-w / 2 + h * 0.16, 0);
+      c.lineTo(-w / 2 + h * 0.16 + ah * 0.9, -ah / 2);
+      c.lineTo(-w / 2 + h * 0.16 + ah * 0.9, ah / 2);
+      c.closePath(); c.fill();
+      ox = ah * 0.45;
+    } else if (t.arrow === "r") {
+      c.fillStyle = "#ffffff";
+      c.beginPath();
+      c.moveTo(w / 2 - h * 0.16, 0);
+      c.lineTo(w / 2 - h * 0.16 - ah * 0.9, -ah / 2);
+      c.lineTo(w / 2 - h * 0.16 - ah * 0.9, ah / 2);
+      c.closePath(); c.fill();
+      ox = -ah * 0.45;
+    }
+    glyphText("EXIT", s * 0.48, ox, 0);
   } else if (t.glyph === "horn") {
-    // square + trapezoid horn, filled
     const w = s * 1.7, h = s;
     const sq = h * 0.55;
     c.fillStyle = col; c.strokeStyle = "#333333";
+    c.lineWidth = Math.max(1, s * 0.06);
     c.beginPath();
     c.rect(-w / 2, -sq / 2, sq, sq);
     c.fill(); c.stroke();
@@ -322,6 +361,7 @@ function drawSym(c, o, scale) {
   } else if (t.glyph === "phone") {
     const r = s / 2;
     c.fillStyle = col; c.strokeStyle = "#ffffff";
+    c.lineWidth = Math.max(1, s * 0.06);
     c.beginPath(); c.rect(-r, -r, s, s); c.fill(); c.stroke();
     // handset: bridge arc bulging up + two earpieces, tilted like a phone icon
     c.save();
@@ -346,6 +386,7 @@ function drawSym(c, o, scale) {
   } else if (t.glyph === "hreel") {
     const r = s / 2;
     c.fillStyle = col; c.strokeStyle = "#ffffff";
+    c.lineWidth = Math.max(1, s * 0.06);
     c.beginPath(); c.rect(-r, -r, s, s); c.fill(); c.stroke();
     c.strokeStyle = "#ffffff"; c.lineWidth = Math.max(1.5, r * 0.14);
     c.beginPath(); c.arc(-r * 0.15, 0, r * 0.5, 0, Math.PI * 2); c.stroke();
@@ -354,13 +395,12 @@ function drawSym(c, o, scale) {
   } else if (t.glyph === "exting") {
     const r = s / 2;
     c.fillStyle = col; c.strokeStyle = "#ffffff";
+    c.lineWidth = Math.max(1, s * 0.06);
     c.beginPath(); c.rect(-r, -r, s, s); c.fill(); c.stroke();
     c.fillStyle = "#ffffff";
-    // body
     c.beginPath();
     if (c.roundRect) c.roundRect(-r * 0.28, -r * 0.25, r * 0.56, r * 0.95, r * 0.15); else c.rect(-r * 0.28, -r * 0.25, r * 0.56, r * 0.95);
     c.fill();
-    // neck + handle
     c.fillRect(-r * 0.09, -r * 0.5, r * 0.18, r * 0.28);
     c.strokeStyle = "#ffffff"; c.lineWidth = r * 0.12; c.lineCap = "round";
     c.beginPath(); c.moveTo(-r * 0.3, -r * 0.52); c.lineTo(r * 0.3, -r * 0.52); c.stroke();
@@ -368,23 +408,7 @@ function drawSym(c, o, scale) {
   }
   c.restore();
 
-  // upright, unmirrored text
-  if (t.text) {
-    c.save();
-    c.fillStyle = "#ffffff";
-    let fs;
-    if (t.glyph === "circle") fs = s * 0.55;
-    else if (t.glyph === "sqtext") fs = t.text.length > 2 ? s * 0.42 : s * 0.5;
-    else if (t.glyph === "widetext") fs = Math.min(s * 0.55, (s * 2.1) / t.text.length * 1.5);
-    else if (t.glyph === "exit") fs = s * 0.5;
-    else fs = s * 0.5;
-    c.font = "bold " + fs + "px system-ui, sans-serif";
-    c.textAlign = "center"; c.textBaseline = "middle";
-    c.fillText(t.text, x, y + fs * 0.05);
-    c.restore();
-  }
-
-  // ID label
+  // ID label (always upright, below the symbol)
   if (labelsOn && (o.zone || o.loop || o.dev)) {
     const parts = [];
     if (o.zone) parts.push("Z" + o.zone);
@@ -779,33 +803,84 @@ function refreshTabs() {
   });
 }
 
+const DEFAULT_FAVS = ["smoke", "csmoke", "thermal", "cthermal", "fip", "fdcie", "mcp", "wip", "sounder"];
+let favIds;
+try { favIds = JSON.parse(localStorage.getItem("bpm-favs") || "null") || DEFAULT_FAVS.slice(); }
+catch (e) { favIds = DEFAULT_FAVS.slice(); }
+
+function isFav(id) { return favIds.includes(id); }
+function toggleFav(id) {
+  if (isFav(id)) favIds = favIds.filter(f => f !== id);
+  else favIds.push(id);
+  try { localStorage.setItem("bpm-favs", JSON.stringify(favIds)); } catch (e) {}
+  buildPalette();
+}
+
+function attachLongPress(el, id) {
+  let timer = null, x0 = 0, y0 = 0;
+  el.addEventListener("pointerdown", e => {
+    x0 = e.clientX; y0 = e.clientY;
+    timer = setTimeout(() => {
+      timer = null;
+      if (navigator.vibrate) navigator.vibrate(30);
+      toggleFav(id);
+    }, 550);
+  });
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  el.addEventListener("pointerup", cancel);
+  el.addEventListener("pointerleave", cancel);
+  el.addEventListener("pointermove", e => {
+    if (timer && Math.hypot(e.clientX - x0, e.clientY - y0) > 12) cancel();
+  });
+}
+
+function entriesForTab(tab) {
+  if (tab === "fav") {
+    return favIds.map(id => {
+      if (TYPE_MAP[id]) return { kind:"sym", t:TYPE_MAP[id] };
+      const m = MARKUP_TOOLS.find(mt => mt.id === id);
+      return m ? { kind:"tool", t:m } : null;
+    }).filter(Boolean);
+  }
+  if (tab === "markup") return MARKUP_TOOLS.map(t => ({ kind:"tool", t }));
+  return TYPES.filter(t => t.tab === tab).map(t => ({ kind:"sym", t }));
+}
+
 function buildPalette() {
   refreshTabs();
   paletteEl.innerHTML = "";
-  if (activeTab === "markup") {
-    MARKUP_TOOLS.forEach(t => {
-      const d = document.createElement("div");
-      d.className = "pal" + (activeTool === t.id ? " active" : "");
-      d.id = "pal-" + t.id;
-      d.innerHTML = '<div class="sym">' + t.icon + '</div><div class="lbl">' + t.label + '</div><div class="cnt"></div>';
-      d.onclick = () => setTool(t.id);
-      paletteEl.appendChild(d);
-    });
-  } else {
-    TYPES.filter(t => t.tab === activeTab).forEach(t => {
-      const d = document.createElement("div");
-      d.className = "pal" + (activeTool === t.id ? " active" : "");
-      d.id = "pal-" + t.id;
+  const entries = entriesForTab(activeTab);
+  if (!entries.length) {
+    const hint = document.createElement("div");
+    hint.style.cssText = "font-size:12px;color:#888;padding:10px";
+    hint.textContent = "Press & hold any tool to add it to Favourites.";
+    paletteEl.appendChild(hint);
+  }
+  entries.forEach(en => {
+    const t = en.t;
+    const d = document.createElement("div");
+    d.className = "pal" + (activeTool === t.id ? " active" : "");
+    d.id = "pal-" + t.id;
+    d.title = "Press & hold to add/remove from Favourites";
+    if (en.kind === "tool") {
+      d.innerHTML = '<div class="sym">' + t.icon + '</div>';
+    } else {
       const ic = document.createElement("canvas");
       d.appendChild(ic);
-      const lbl = document.createElement("div"); lbl.className = "lbl"; lbl.textContent = t.label;
-      const cnt = document.createElement("div"); cnt.className = "cnt"; cnt.id = "cnt-" + t.id;
-      d.appendChild(lbl); d.appendChild(cnt);
       drawPalIcon(ic, t.id);
-      d.onclick = () => setTool(t.id);
-      paletteEl.appendChild(d);
-    });
-  }
+    }
+    const lbl = document.createElement("div");
+    lbl.className = "lbl";
+    lbl.textContent = (isFav(t.id) ? "\u2605 " : "") + t.label;
+    d.appendChild(lbl);
+    const cnt = document.createElement("div");
+    cnt.className = "cnt";
+    if (en.kind === "sym") cnt.id = "cnt-" + t.id;
+    d.appendChild(cnt);
+    d.onclick = () => setTool(t.id);
+    attachLongPress(d, t.id);
+    paletteEl.appendChild(d);
+  });
   updateStatus();
 }
 
@@ -1148,6 +1223,13 @@ cv.addEventListener("pointerdown", e => {
     return;
   }
 
+  // middle/right mouse button pans from any tool
+  if (e.pointerType === "mouse" && e.button !== 0) {
+    dragMode = "pan";
+    panStart = { x:p.x, y:p.y, viewX:view.x, viewY:view.y };
+    return;
+  }
+
   const ip = toImage(p.x, p.y);
 
   if (activeTool === "pan") {
@@ -1166,6 +1248,12 @@ cv.addEventListener("pointerdown", e => {
     objects.push(currentStroke);
     clearSelection();
     dragMode = "draw";
+    return;
+  }
+
+  if (activeTool === "text") {
+    dragMode = "textTap";
+    panStart = { x:p.x, y:p.y, viewX:view.x, viewY:view.y };
     return;
   }
 
@@ -1202,7 +1290,8 @@ cv.addEventListener("pointerdown", e => {
     moveOrig = selection.map(o => JSON.stringify(o));
     draw();
   } else {
-    dragMode = "placeTap";
+    dragMode = "placeOrPan";
+    panStart = { x:p.x, y:p.y, viewX:view.x, viewY:view.y };
   }
 });
 
@@ -1269,6 +1358,8 @@ cv.addEventListener("pointermove", e => {
     draw();
     return;
   }
+
+  if ((dragMode === "placeOrPan" || dragMode === "textTap") && moved) dragMode = "pan";
 
   if (dragMode === "pan" && panStart) {
     view.x = panStart.viewX + (p.x - panStart.x);
@@ -1355,7 +1446,7 @@ function endPointer(e) {
     return;
   }
 
-  if (dragMode === "placeTap") {
+  if (dragMode === "placeOrPan") {
     if (!moved && TYPE_MAP[activeTool]) {
       pushUndo();
       const m = { kind:"sym", type:activeTool, x:ip.x, y:ip.y, size:+sizeSlider.value, rot:0, fx:false, fy:false, zone:"", loop:"", dev:"", info:"" };
@@ -1363,19 +1454,23 @@ function endPointer(e) {
       setSelection([m]);
       draw();
     }
-    dragMode = null;
+    dragMode = null; panStart = null;
     return;
   }
 
-  if (activeTool === "text" && !moved) {
-    const content = window.prompt("Text:");
-    if (content && content.trim()) {
-      pushUndo();
-      const t = { kind:"text", x:ip.x, y:ip.y, text:content.trim(), size:+sizeSlider.value, color:penColor };
-      objects.push(t);
-      setSelection([t]);
+  if (dragMode === "textTap") {
+    if (!moved) {
+      const content = window.prompt("Text:");
+      if (content && content.trim()) {
+        pushUndo();
+        const t = { kind:"text", x:ip.x, y:ip.y, text:content.trim(), size:+sizeSlider.value, color:penColor };
+        objects.push(t);
+        setSelection([t]);
+      }
+      draw();
     }
-    draw();
+    dragMode = null; panStart = null;
+    return;
   }
   dragMode = null; panStart = null;
 }
@@ -1388,6 +1483,8 @@ cv.addEventListener("wheel", e => {
   const p = localXY(e);
   zoomAt(p.x, p.y, e.deltaY < 0 ? 1.15 : 1 / 1.15);
 }, { passive:false });
+
+cv.addEventListener("contextmenu", e => e.preventDefault());
 
 cv.addEventListener("dblclick", () => {
   if (selection.length === 1 && selection[0].kind === "sym") openDetails();
