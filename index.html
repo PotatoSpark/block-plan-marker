@@ -83,7 +83,8 @@
 <div id="app">
 
   <div id="topbar">
-    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.12 beta</span></span>
+    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.13 beta</span></span>
+    <button class="btn" id="btnPlans">&#9776; Plans</button>
     <button class="btn" id="btnOpenProj">&#128194; Open</button>
     <button class="btn" id="btnPhoto">&#128247; Photo</button>
     <button class="btn" id="btnSaveProj">&#128190; Save</button>
@@ -104,6 +105,7 @@
   <div id="toolrow">
     <div class="modebtn active" id="mode-pan"><span>&#9995;</span><span class="lbl">Pan</span></div>
     <div class="modebtn" id="mode-select"><span>&#10548;</span><span class="lbl">Select</span></div>
+    <div class="modebtn" id="mode-test"><span style="color:#4caf50">&#10003;</span><span class="lbl">Test</span></div>
     <button class="btn bigur" id="btnUndo" title="Undo (Ctrl+Z)">&#8630;</button>
     <button class="btn bigur" id="btnRedo" title="Redo (Ctrl+Y)">&#8631;</button>
     <div id="tabs"></div>
@@ -123,6 +125,11 @@
   <div id="bottombar">
     <div id="sizeWrap">Size <input type="range" id="sizeSlider" min="0" max="100" value="48"></div>
     <div id="swatches"></div>
+    <div id="testWrap" style="display:none;align-items:center;gap:5px;font-size:12px;color:#aaa">Testing year
+      <select id="testYear" style="background:#1a1d21;color:#e8e8e8;border:1px solid #444;border-radius:6px;padding:6px">
+        <option>2026</option><option>2027</option><option>2028</option><option>2029</option>
+      </select>
+    </div>
     <div id="alphaWrap" style="display:none;align-items:center;gap:5px;font-size:12px;color:#aaa">Opacity <input type="range" id="alphaSlider" min="10" max="100" value="40" style="width:80px"></div>
     <button class="btn" id="btnDetails" disabled>&#9432; Details</button>
     <button class="btn" id="btnRotate" disabled title="Rotate 90&deg;">&#10227;</button>
@@ -155,6 +162,13 @@
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;color:#e8e8e8">
       <input type="checkbox" id="dFailed" style="width:18px;height:18px"> Failed
     </label>
+    <label>Year tested</label>
+    <div id="dYears" style="display:flex;gap:14px;font-size:14px;color:#e8e8e8">
+      <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" class="dYear" value="2026" style="width:17px;height:17px">2026</label>
+      <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" class="dYear" value="2027" style="width:17px;height:17px">2027</label>
+      <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" class="dYear" value="2028" style="width:17px;height:17px">2028</label>
+      <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" class="dYear" value="2029" style="width:17px;height:17px">2029</label>
+    </div>
     <div id="photoWrap" style="margin-top:10px">
       <label>Photo</label>
       <img id="dPhotoPreview" style="display:none;max-width:120px;max-height:120px;border:1px solid #555;border-radius:6px;margin:4px 0">
@@ -211,12 +225,22 @@
   </div>
 </div>
 
+<div class="modal" id="plansModal">
+  <div class="modalbox" style="max-width:520px">
+    <h3>My plans (saved on this device)</h3>
+    <button class="btn primary" id="planSaveNew" style="margin-bottom:10px">&#128190; Save current as new plan</button>
+    <div id="plansList"></div>
+    <div class="row"><button class="btn" id="plansClose">Close</button></div>
+  </div>
+</div>
+
 <div class="modal" id="reportModal">
   <div class="modalbox" style="max-width:560px">
     <h3>Site report</h3>
     <div id="reportBody" style="font-size:13px"></div>
     <div class="row">
       <button class="btn primary" id="reportPdf">&#128196; Save as PDF</button>
+      <button class="btn" id="reportCsv">&#128202; Save CSV</button>
       <button class="btn" id="reportClose">Close</button>
     </div>
   </div>
@@ -303,6 +327,7 @@ let fileHandle = null;          // File System Access handle (PC save-in-place)
 let lastSaveNote = "";
 let siteNotes = "";
 let pageBaseH = null;
+let testYearSel = 2026;
 
 const cv = document.getElementById("cv");
 const ctx = cv.getContext("2d");
@@ -581,6 +606,28 @@ function drawSym(c, o, scale) {
       c.fillText(line, x, ly);
       ly += fs * 1.15;
     });
+    c.restore();
+  }
+
+  // tested badge (test mode only)
+  if (activeTool === "test") {
+    const d2 = symDims(o);
+    const bx2 = x - (d2.w / 2) * scale, by2 = y - (d2.h / 2) * scale;
+    const br2 = Math.max(6 * scale, o.size * scale * 0.22);
+    const done = (o.ty || []).includes(testYearSel);
+    c.save();
+    c.beginPath(); c.arc(bx2, by2, br2, 0, Math.PI * 2);
+    c.fillStyle = done ? "#1b8a3f" : "#e0e0e0";
+    c.fill();
+    c.strokeStyle = "#ffffff"; c.lineWidth = Math.max(1, br2 * 0.16); c.stroke();
+    if (done) {
+      c.strokeStyle = "#ffffff"; c.lineWidth = br2 * 0.3; c.lineCap = "round";
+      c.beginPath();
+      c.moveTo(bx2 - br2 * 0.45, by2 + br2 * 0.05);
+      c.lineTo(bx2 - br2 * 0.1, by2 + br2 * 0.42);
+      c.lineTo(bx2 + br2 * 0.5, by2 - br2 * 0.35);
+      c.stroke();
+    }
     c.restore();
   }
 
@@ -1479,6 +1526,9 @@ function setTool(id) {
   activeTool = id;
   document.getElementById("mode-pan").classList.toggle("active", id === "pan");
   document.getElementById("mode-select").classList.toggle("active", id === "select");
+  document.getElementById("mode-test").classList.toggle("active", id === "test");
+  document.getElementById("testWrap").style.display = id === "test" ? "flex" : "none";
+  if (id === "test") clearSelection();
   document.querySelectorAll(".pal").forEach(p => p.classList.remove("active"));
   const el = document.getElementById("pal-" + id);
   if (el) el.classList.add("active");
@@ -1487,6 +1537,8 @@ function setTool(id) {
 }
 document.getElementById("mode-pan").onclick = () => setTool("pan");
 document.getElementById("mode-select").onclick = () => setTool("select");
+document.getElementById("mode-test").onclick = () => setTool("test");
+document.getElementById("testYear").addEventListener("change", e => { testYearSel = +e.target.value; requestDraw(); });
 buildTabs();
 buildPalette();
 
@@ -1530,7 +1582,7 @@ function migrate(obj) {
 function setImage(im, dataUrl, keepObjects) {
   img = im;
   imgDataUrl = dataUrl;
-  if (!keepObjects) { objects = []; undoStack = []; redoStack = []; pageBaseH = im.naturalHeight; }
+  if (!keepObjects) { objects = []; undoStack = []; redoStack = []; pageBaseH = im.naturalHeight; currentProjId = null; }
   if (pageBaseH == null) pageBaseH = im.naturalHeight;
   clearSelection();
   document.getElementById("dropHint").classList.add("hidden");
@@ -1700,6 +1752,7 @@ function loadProjectFile(file) {
         siteNotes = proj.siteNotes || "";
         pageBaseH = proj.pageBaseH || null;
         undoStack = []; redoStack = [];
+        currentProjId = null;
         fileHandle = null;
         setImage(im, proj.image, true);
       };
@@ -1763,6 +1816,14 @@ async function idbPut(key, val) {
     tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
   });
 }
+async function idbDel(key) {
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("kv", "readwrite");
+    tx.objectStore("kv").delete(key);
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+  });
+}
 async function idbGet(key) {
   const db = await idb();
   return new Promise((resolve, reject) => {
@@ -1780,6 +1841,12 @@ async function autosaveNow() {
   autosaveDirty = false;
   try {
     await idbPut("autosave", { image:imgDataUrl, objects:objects, labelsOn:labelsOn, siteNotes:siteNotes, pageBaseH:pageBaseH, t:Date.now() });
+    if (currentProjId) {
+      await idbPut("proj:" + currentProjId, planSnapshot());
+      const ix = (await idbGet("projIndex")) || [];
+      const en = ix.find(x => x.id === currentProjId);
+      if (en) { en.t = Date.now(); en.thumb = makeThumb(); await idbPut("projIndex", ix); }
+    }
     noteSaved("Autosaved");
   } catch (e) { /* storage full or unavailable — ignore */ }
 }
@@ -1802,6 +1869,98 @@ async function tryRestoreAutosave() {
     im.src = a.image;
   } catch (e) { /* no autosave */ }
 }
+
+/* ================= Plans library ================= */
+let currentProjId = null;
+
+function planSnapshot() {
+  return { image:imgDataUrl, objects:objects, labelsOn:labelsOn, siteNotes:siteNotes, pageBaseH:pageBaseH };
+}
+function makeThumb() {
+  const tw = 220;
+  const c = document.createElement("canvas");
+  const sc = tw / img.naturalWidth;
+  c.width = tw; c.height = Math.round(img.naturalHeight * sc);
+  const cx = c.getContext("2d");
+  cx.fillStyle = "#ffffff"; cx.fillRect(0, 0, c.width, c.height);
+  cx.drawImage(img, 0, 0, c.width, c.height);
+  objects.forEach(o => { try { drawObject(cx, o, sc); } catch (e) {} });
+  return c.toDataURL("image/jpeg", 0.6);
+}
+
+async function renderPlansList() {
+  const ix = (await idbGet("projIndex")) || [];
+  const wrap = document.getElementById("plansList");
+  if (!ix.length) {
+    wrap.innerHTML = '<p style="font-size:13px;color:#888">No saved plans yet. Load a block plan, then hit "Save current as new plan".</p>';
+    return;
+  }
+  wrap.innerHTML = "";
+  ix.forEach(en => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:10px;padding:7px;border:1px solid #3a3f46;border-radius:8px;margin-bottom:7px;cursor:pointer;background:" + (en.id === currentProjId ? "#31413a" : "#1f2328");
+    const im = document.createElement("img");
+    im.src = en.thumb || "";
+    im.style.cssText = "width:64px;height:44px;object-fit:cover;border-radius:4px;background:#fff;flex:0 0 auto";
+    const info = document.createElement("div");
+    info.style.cssText = "flex:1;min-width:0";
+    info.innerHTML = '<div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
+      en.name.replace(/&/g, "&amp;").replace(/</g, "&lt;") + '</div>' +
+      '<div style="font-size:11px;color:#888">' + new Date(en.t).toLocaleString() + '</div>';
+    const del = document.createElement("button");
+    del.className = "btn"; del.textContent = "✕"; del.title = "Delete plan";
+    del.onclick = async e => {
+      e.stopPropagation();
+      if (!window.confirm('Delete plan "' + en.name + '" from this device?')) return;
+      const ix2 = ((await idbGet("projIndex")) || []).filter(x => x.id !== en.id);
+      await idbPut("projIndex", ix2);
+      await idbDel("proj:" + en.id);
+      if (currentProjId === en.id) currentProjId = null;
+      renderPlansList();
+    };
+    row.onclick = () => openPlan(en.id);
+    row.appendChild(im); row.appendChild(info); row.appendChild(del);
+    wrap.appendChild(row);
+  });
+}
+
+async function openPlan(id) {
+  const d = await idbGet("proj:" + id);
+  if (!d || !d.image) { alert("Couldn't open that plan."); return; }
+  const im = new Image();
+  im.onload = () => {
+    objects = migrate(d.objects);
+    labelsOn = d.labelsOn !== false; refreshLabelsBtn();
+    siteNotes = d.siteNotes || "";
+    pageBaseH = d.pageBaseH || null;
+    undoStack = []; redoStack = [];
+    fileHandle = null;
+    currentProjId = id;
+    setImage(im, d.image, true);
+    document.getElementById("plansModal").classList.remove("show");
+    lastSaveNote = "Opened plan"; updateStatus();
+  };
+  im.src = d.image;
+}
+
+document.getElementById("btnPlans").onclick = () => {
+  renderPlansList();
+  document.getElementById("plansModal").classList.add("show");
+};
+document.getElementById("plansClose").onclick = () => document.getElementById("plansModal").classList.remove("show");
+document.getElementById("planSaveNew").onclick = async () => {
+  if (!img) { alert("Load a block plan first."); return; }
+  const name = window.prompt("Plan name (e.g. HNEH Ward 3 – Level 2):");
+  if (!name || !name.trim()) return;
+  const id = "p" + Date.now();
+  await idbPut("proj:" + id, planSnapshot());
+  const ix = (await idbGet("projIndex")) || [];
+  ix.unshift({ id:id, name:name.trim(), t:Date.now(), thumb:makeThumb() });
+  await idbPut("projIndex", ix);
+  currentProjId = id;
+  renderPlansList();
+  noteSaved("Saved plan");
+};
 
 /* mark dirty on any undoable change */
 const _origPushUndo = pushUndo;
@@ -1866,6 +2025,12 @@ cv.addEventListener("pointerdown", e => {
 
   if (activeTool === "pan") {
     dragMode = "pan";
+    panStart = { x:p.x, y:p.y, viewX:view.x, viewY:view.y };
+    return;
+  }
+
+  if (activeTool === "test") {
+    dragMode = "testTapOrPan";
     panStart = { x:p.x, y:p.y, viewX:view.x, viewY:view.y };
     return;
   }
@@ -2026,7 +2191,7 @@ cv.addEventListener("pointermove", e => {
     return;
   }
 
-  if ((dragMode === "placeOrPan" || dragMode === "textTap") && moved) dragMode = "pan";
+  if ((dragMode === "placeOrPan" || dragMode === "textTap" || dragMode === "testTapOrPan") && moved) dragMode = "pan";
 
   if (dragMode === "pan" && panStart) {
     view.x = panStart.viewX + (p.x - panStart.x);
@@ -2138,6 +2303,21 @@ function endPointer(e) {
     dragMode = null; panStart = null;
     return;
   }
+
+  if (dragMode === "testTapOrPan") {
+    if (!moved) {
+      const hit = hitObject(p.x, p.y);
+      if (hit && hit.kind === "sym") {
+        pushUndo();
+        hit.ty = hit.ty || [];
+        const i = hit.ty.indexOf(testYearSel);
+        if (i >= 0) hit.ty.splice(i, 1); else hit.ty.push(testYearSel);
+        draw();
+      }
+    }
+    dragMode = null; panStart = null;
+    return;
+  }
   dragMode = null; panStart = null;
 }
 cv.addEventListener("pointerup", endPointer);
@@ -2163,6 +2343,7 @@ const detailsModal = document.getElementById("detailsModal");
 let detailsTargets = [];
 let detailsPhoto = undefined;   // undefined = unchanged, null = removed, string = new dataURL
 let failedTouched = false;
+let yearsTouched = {};
 
 function openDetails() {
   const syms = selection.filter(o => o.kind === "sym");
@@ -2190,6 +2371,15 @@ function openDetails() {
   fEl.checked = syms.every(o => o.failed);
   fEl.indeterminate = multi && syms.some(o => o.failed) && !syms.every(o => o.failed);
   fEl.onchange = () => { failedTouched = true; };
+  yearsTouched = {};
+  document.querySelectorAll(".dYear").forEach(cb => {
+    const y = +cb.value;
+    const all = syms.every(o => (o.ty || []).includes(y));
+    const some = syms.some(o => (o.ty || []).includes(y));
+    cb.checked = all;
+    cb.indeterminate = multi && some && !all;
+    cb.onchange = () => { yearsTouched[y] = true; };
+  });
   const ph = document.getElementById("dPhotoPreview");
   const photo = !multi && syms[0].photo;
   ph.src = photo || "";
@@ -2249,6 +2439,14 @@ document.getElementById("detailsSave").onclick = () => {
         if (!multi || v !== "") o[k] = v;
       });
       if (!multi || failedTouched) o.failed = failed;
+      document.querySelectorAll(".dYear").forEach(cb => {
+        const y = +cb.value;
+        if (multi && !yearsTouched[y]) return;
+        o.ty = o.ty || [];
+        const idx = o.ty.indexOf(y);
+        if (cb.checked && idx < 0) o.ty.push(y);
+        if (!cb.checked && idx >= 0) o.ty.splice(idx, 1);
+      });
       if (!multi && detailsPhoto !== undefined) {
         if (detailsPhoto === null) delete o.photo; else o.photo = detailsPhoto;
       }
@@ -2414,6 +2612,13 @@ function reportLines() {
     const t = TYPE_MAP[o.type];
     lines.push(["t", "✗ " + (t ? t.label : o.type) + (symRef(o) ? " — " + symRef(o) : "") + (o.info ? " — " + o.info : "")]);
   });
+  lines.push(["h2", "Testing"]);
+  [2026, 2027, 2028, 2029].forEach(y => {
+    const n = objects.filter(o => o.kind === "sym" && (o.ty || []).includes(y)).length;
+    if (n) lines.push(["t", "Tested " + y + ": " + n + " devices"]);
+  });
+  const untested = objects.filter(o => o.kind === "sym" && !(o.ty || []).length).length;
+  lines.push(["t", "No test year recorded: " + untested]);
   if (siteNotes.trim()) {
     lines.push(["h2", "Site notes"]);
     siteNotes.split("\n").forEach(l => lines.push(["t", l]));
@@ -2435,6 +2640,19 @@ document.getElementById("btnReport").onclick = () => {
   document.getElementById("reportModal").classList.add("show");
 };
 document.getElementById("reportClose").onclick = () => document.getElementById("reportModal").classList.remove("show");
+
+document.getElementById("reportCsv").onclick = () => {
+  const esc = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  const rows = [["Type", "Zone", "Loop", "Device", "Other info", "Failed", "Years tested", "A (dBA)", "E (dBA)"]];
+  objects.forEach(o => {
+    if (o.kind !== "sym") return;
+    const t = TYPE_MAP[o.type];
+    rows.push([t ? t.label : o.type, o.zone || "", o.loop || "", o.dev || "", o.info || "",
+               o.failed ? "YES" : "", (o.ty || []).join(" "), o.va || "", o.ve || ""]);
+  });
+  const csv = rows.map(r => r.map(esc).join(",")).join("\r\n");
+  deliverFile(new Blob(["\ufeff" + csv], { type:"text/csv" }), "device-schedule-" + new Date().toISOString().slice(0, 10) + ".csv", "text/csv");
+};
 
 document.getElementById("reportPdf").onclick = () => {
   const lines = reportLines();
