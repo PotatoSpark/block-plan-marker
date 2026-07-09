@@ -83,7 +83,7 @@
 <div id="app">
 
   <div id="topbar">
-    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.14 beta</span></span>
+    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.15 beta</span></span>
     <button class="btn" id="btnPlans">&#9776; Plans</button>
     <button class="btn" id="btnNew">&#65291; New</button>
     <button class="btn" id="btnOpenProj">&#128194; Open</button>
@@ -322,7 +322,7 @@ const TABS = [
   { id:"elec",   label:"Electrical" },
   { id:"markup", label:"Markup" }
 ];
-const PALETTE_COLORS = ["#d81e05", "#e07b00", "#f2c200", "#1b8a3f", "#00897b", "#0057d8", "#00a5c8", "#7b1fa2", "#d81b8c", "#6d4c41", "#757575", "#111111", "#ffffff"];
+const PALETTE_COLORS = ["#d81e05", "#f2c200", "#1b8a3f", "#0057d8", "#111111", "#ffffff"];
 
 /* ================= State ================= */
 let img = null;
@@ -1042,6 +1042,17 @@ function getHandles(o) {
   } else if (o.kind === "shape") {
     if (o.shape === "hatch" && o.pts) {
       o.pts.forEach(p => H.push({ x:p.x, y:p.y, set:(nx, ny) => { p.x = nx; p.y = ny; } }));
+      for (let i = 0; i < o.pts.length; i++) {
+        const a = o.pts[i], b = o.pts[(i + 1) % o.pts.length];
+        H.push({
+          x:(a.x + b.x) / 2, y:(a.y + b.y) / 2, edge:true,
+          set:(nx, ny) => {
+            const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+            const dx = nx - mx, dy = ny - my;
+            a.x += dx; a.y += dy; b.x += dx; b.y += dy;
+          }
+        });
+      }
     } else if (o.shape === "line" || o.shape === "arrow") {
       H.push({ x:o.x1, y:o.y1, set:(nx, ny) => { o.x1 = nx; o.y1 = ny; } });
       H.push({ x:o.x2, y:o.y2, set:(nx, ny) => { o.x2 = nx; o.y2 = ny; } });
@@ -1116,8 +1127,13 @@ function draw() {
     hs.forEach(hd => {
       const hx = hd.x * view.scale + view.x, hy = hd.y * view.scale + view.y;
       ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#00a5c8"; ctx.lineWidth = 2;
-      ctx.fillRect(hx - 6, hy - 6, 12, 12);
-      ctx.strokeRect(hx - 6, hy - 6, 12, 12);
+      if (hd.edge) {
+        ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+      } else {
+        ctx.fillRect(hx - 6, hy - 6, 12, 12);
+        ctx.strokeRect(hx - 6, hy - 6, 12, 12);
+      }
     });
     ctx.restore();
   }
@@ -1590,16 +1606,19 @@ PALETTE_COLORS.forEach((c, i) => {
   swatchesEl.appendChild(s);
 });
 
-// custom colour picker swatch
+// custom colour wheel — the real <input type=color> sits transparently on top,
+// so a finger tap lands directly on it (required for iPad Safari to open the picker)
 const customSw = document.createElement("div");
 customSw.className = "swatch";
 customSw.id = "customSwatch";
 customSw.title = "Custom colour";
 customSw.style.background = "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)";
+customSw.style.position = "relative";
 const customInput = document.createElement("input");
 customInput.type = "color";
-customInput.style.cssText = "position:absolute;width:1px;height:1px;opacity:0;pointer-events:none";
-customSw.onclick = () => customInput.click();
+customInput.value = "#ff8800";
+customInput.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;border:none;padding:0;margin:0;cursor:pointer";
+customSw.appendChild(customInput);
 customInput.addEventListener("input", () => {
   penColor = customInput.value;
   customSw.style.background = customInput.value;
@@ -1612,7 +1631,6 @@ customInput.addEventListener("input", () => {
 });
 customInput.addEventListener("change", () => { if (selection.length) { scheduleAutosave(); } });
 swatchesEl.appendChild(customSw);
-swatchesEl.appendChild(customInput);
 
 /* ================= Labels toggle ================= */
 const btnLabels = document.getElementById("btnLabels");
@@ -2155,6 +2173,18 @@ cv.addEventListener("pointerdown", e => {
   }
 
   if (SHAPE_TOOLS.includes(activeTool)) {
+    if (HATCH_PATTERN[activeTool]) {
+      const hitH = hitObject(p.x, p.y);
+      if (hitH && hitH.kind === "shape" && hitH.shape === "hatch") {
+        setSelection([hitH]);
+        pushUndo();
+        dragMode = "moveSel";
+        moveStartImg = ip;
+        moveOrig = selection.map(o => JSON.stringify(o));
+        draw();
+        return;
+      }
+    }
     shapeStart = ip;
     dragMode = "shape";
     clearSelection();
