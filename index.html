@@ -83,7 +83,7 @@
 <div id="app">
 
   <div id="topbar">
-    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.15 beta</span></span>
+    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.16 beta</span></span>
     <button class="btn" id="btnPlans">&#9776; Plans</button>
     <button class="btn" id="btnNew">&#65291; New</button>
     <button class="btn" id="btnOpenProj">&#128194; Open</button>
@@ -107,6 +107,7 @@
     <div class="modebtn active" id="mode-pan"><span>&#9995;</span><span class="lbl">Pan</span></div>
     <div class="modebtn" id="mode-select"><span>&#10548;</span><span class="lbl">Select</span></div>
     <div class="modebtn" id="mode-test"><span style="color:#4caf50">&#10003;</span><span class="lbl">Test</span></div>
+    <div class="modebtn" id="mode-multi" title="While on, taps add/remove from the selection (or hold Shift on PC)"><span>&#65291;</span><span class="lbl">Multi</span></div>
     <button class="btn bigur" id="btnUndo" title="Undo (Ctrl+Z)">&#8630;</button>
     <button class="btn bigur" id="btnRedo" title="Redo (Ctrl+Y)">&#8631;</button>
     <div id="tabs"></div>
@@ -126,6 +127,11 @@
   <div id="bottombar">
     <div id="sizeWrap">Size <input type="range" id="sizeSlider" min="0" max="100" value="48"></div>
     <div id="swatches"></div>
+    <div id="styleWrap" style="display:none;align-items:center;gap:5px;font-size:12px;color:#aaa">Line
+      <select id="lineStyleSel" style="background:#1a1d21;color:#e8e8e8;border:1px solid #444;border-radius:6px;padding:6px">
+        <option value="solid">Solid</option><option value="dash">Dashed</option><option value="dot">Dotted</option>
+      </select>
+    </div>
     <div id="testWrap" style="display:none;align-items:center;gap:5px;font-size:12px;color:#aaa">Testing year
       <select id="testYear" style="background:#1a1d21;color:#e8e8e8;border:1px solid #444;border-radius:6px;padding:6px">
         <option>2026</option><option>2027</option><option>2028</option><option>2029</option>
@@ -341,6 +347,7 @@ let lastSaveNote = "";
 let siteNotes = "";
 let pageBaseH = null;
 let testYearSel = 2026;
+let lineStyle = "solid";
 
 const cv = document.getElementById("cv");
 const ctx = cv.getContext("2d");
@@ -762,10 +769,16 @@ function drawObjectInner(c, o, scale) {
     c.strokeStyle = o.color;
     c.lineWidth = Math.max(1, o.width * scale);
     c.lineCap = "round"; c.lineJoin = "round";
+    if (o.ls === "dash") c.setLineDash([o.width * scale * 3.2, o.width * scale * 2.2]);
+    else if (o.ls === "dot") { c.setLineDash([0.01, o.width * scale * 2.4]); c.lineCap = "round"; }
     if (o.shape === "line" || o.shape === "arrow") {
-      c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+      c.beginPath(); c.moveTo(x1, y1);
+      if (o.cx != null) c.quadraticCurveTo(o.cx * scale, o.cy * scale, x2, y2);
+      else c.lineTo(x2, y2);
+      c.stroke();
+      c.setLineDash([]);
       if (o.shape === "arrow") {
-        const ang = Math.atan2(y1 - y2, x1 - x2);
+        const ang = o.cx != null ? Math.atan2(y1 - o.cy * scale, x1 - o.cx * scale) : Math.atan2(y1 - y2, x1 - x2);
         const ah = Math.max(10 * scale, o.width * scale * 4);
         c.beginPath();
         c.moveTo(x1, y1);
@@ -917,6 +930,10 @@ function objectBounds(o) {
       o.pts.forEach(p => { x1 = Math.min(x1, p.x); y1 = Math.min(y1, p.y); x2 = Math.max(x2, p.x); y2 = Math.max(y2, p.y); });
       return { x1, y1, x2, y2 };
     }
+    if (o.cx != null) {
+      const mx = 0.25 * o.x1 + 0.5 * o.cx + 0.25 * o.x2, my = 0.25 * o.y1 + 0.5 * o.cy + 0.25 * o.y2;
+      return { x1:Math.min(o.x1, o.x2, mx), y1:Math.min(o.y1, o.y2, my), x2:Math.max(o.x1, o.x2, mx), y2:Math.max(o.y1, o.y2, my) };
+    }
     return { x1:Math.min(o.x1, o.x2), y1:Math.min(o.y1, o.y2), x2:Math.max(o.x1, o.x2), y2:Math.max(o.y1, o.y2) };
   }
   if (o.kind === "callout") {
@@ -993,7 +1010,18 @@ function hitObject(px, py) {
         if (distToSeg(p, o.points[j], o.points[j + 1]) <= tol) return o;
       }
     } else if (o.kind === "shape" && (o.shape === "line" || o.shape === "arrow")) {
-      if (distToSeg(p, { x:o.x1, y:o.y1 }, { x:o.x2, y:o.y2 }) <= o.width / 2 + slack) return o;
+      if (o.cx != null) {
+        let prev = { x:o.x1, y:o.y1 };
+        let hitCurve = false;
+        for (let s2 = 1; s2 <= 16; s2++) {
+          const t = s2 / 16, mt = 1 - t;
+          const q = { x:mt * mt * o.x1 + 2 * mt * t * o.cx + t * t * o.x2,
+                      y:mt * mt * o.y1 + 2 * mt * t * o.cy + t * t * o.y2 };
+          if (distToSeg(p, prev, q) <= o.width / 2 + slack) { hitCurve = true; break; }
+          prev = q;
+        }
+        if (hitCurve) return o;
+      } else if (distToSeg(p, { x:o.x1, y:o.y1 }, { x:o.x2, y:o.y2 }) <= o.width / 2 + slack) return o;
     } else if (o.kind === "shape" && o.shape === "hatch" && o.pts) {
       let inside = false;
       const pts = o.pts;
@@ -1056,6 +1084,12 @@ function getHandles(o) {
     } else if (o.shape === "line" || o.shape === "arrow") {
       H.push({ x:o.x1, y:o.y1, set:(nx, ny) => { o.x1 = nx; o.y1 = ny; } });
       H.push({ x:o.x2, y:o.y2, set:(nx, ny) => { o.x2 = nx; o.y2 = ny; } });
+      const mx = o.cx != null ? 0.25 * o.x1 + 0.5 * o.cx + 0.25 * o.x2 : (o.x1 + o.x2) / 2;
+      const my = o.cx != null ? 0.25 * o.y1 + 0.5 * o.cy + 0.25 * o.y2 : (o.y1 + o.y2) / 2;
+      H.push({ x:mx, y:my, edge:true, set:(nx, ny) => {
+        o.cx = 2 * nx - (o.x1 + o.x2) / 2;
+        o.cy = 2 * ny - (o.y1 + o.y2) / 2;
+      }});
     } else {
       // rect/ellipse/cloud corners
       H.push({ x:o.x1, y:o.y1, set:(nx, ny) => { o.x1 = nx; o.y1 = ny; } });
@@ -1109,7 +1143,8 @@ function draw() {
     } else if (o.kind === "shape" && (o.shape === "line" || o.shape === "arrow")) {
       ctx.beginPath();
       ctx.moveTo(o.x1 * view.scale, o.y1 * view.scale);
-      ctx.lineTo(o.x2 * view.scale, o.y2 * view.scale);
+      if (o.cx != null) ctx.quadraticCurveTo(o.cx * view.scale, o.cy * view.scale, o.x2 * view.scale, o.y2 * view.scale);
+      else ctx.lineTo(o.x2 * view.scale, o.y2 * view.scale);
       ctx.stroke();
     } else {
       const b = objectBounds(o);
@@ -1211,6 +1246,11 @@ function updateSelButtons() {
   document.getElementById("btnGroup").disabled = selection.length < 2;
   document.getElementById("btnUngroup").disabled = !selection.some(o => o.grp);
   document.getElementById("btnFlatten").disabled = !any;
+  const styleTargets = selection.filter(o => (o.kind === "shape" && (o.shape === "line" || o.shape === "arrow" || o.shape === "rect" || o.shape === "ellipse")));
+  const swp = document.getElementById("styleWrap");
+  const toolStylable = ["line", "arrow", "rect", "ellipse"].includes(activeTool);
+  swp.style.display = (styleTargets.length || toolStylable) ? "flex" : "none";
+  if (styleTargets.length) document.getElementById("lineStyleSel").value = styleTargets[0].ls || "solid";
   const alphaTargets = selection.filter(o => (o.kind === "shape" && o.shape === "hatch") || o.kind === "img");
   const aw = document.getElementById("alphaWrap");
   aw.style.display = alphaTargets.length ? "flex" : "none";
@@ -1289,6 +1329,7 @@ function rotObj(o) {
     const p1 = { x:o.x1, y:o.y1 }, p2 = { x:o.x2, y:o.y2 };
     rp(p1); rp(p2);
     o.x1 = p1.x; o.y1 = p1.y; o.x2 = p2.x; o.y2 = p2.y;
+    if (o.cx != null) { const pc = { x:o.cx, y:o.cy }; rp(pc); o.cx = pc.x; o.cy = pc.y; }
   }
 }
 function flipObj(o, axis) {
@@ -1311,6 +1352,7 @@ function flipObj(o, axis) {
     const p1 = { x:o.x1, y:o.y1 }, p2 = { x:o.x2, y:o.y2 };
     fp(p1); fp(p2);
     o.x1 = p1.x; o.y1 = p1.y; o.x2 = p2.x; o.y2 = p2.y;
+    if (o.cx != null) { const pc = { x:o.cx, y:o.cy }; fp(pc); o.cx = pc.x; o.cy = pc.y; }
   }
 }
 btnRotate.onclick = () => { if (!selection.length) return; pushUndo(); selection.forEach(rotObj); draw(); };
@@ -1328,18 +1370,47 @@ document.getElementById("alphaSlider").addEventListener("change", scheduleAutosa
 document.getElementById("btnFlatten").onclick = () => {
   if (!selection.length || !img) return;
   if (!window.confirm("Flatten " + selection.length + " item(s) permanently into the plan? This cannot be undone.")) return;
+  // grow the page to cover anything being flattened outside the current plan
+  let minX = 0, minY = 0, maxX = img.naturalWidth, maxY = img.naturalHeight;
+  selection.forEach(o => {
+    const b = objectBounds(o);
+    const pad = 8;
+    minX = Math.min(minX, b.x1 - pad); minY = Math.min(minY, b.y1 - pad);
+    maxX = Math.max(maxX, b.x2 + pad); maxY = Math.max(maxY, b.y2 + pad);
+  });
+  minX = Math.floor(minX); minY = Math.floor(minY);
+  const W = Math.ceil(maxX - minX), H = Math.ceil(maxY - minY);
   const c = document.createElement("canvas");
-  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  c.width = W; c.height = H;
   const cx = c.getContext("2d");
+  cx.fillStyle = "#ffffff";
+  cx.fillRect(0, 0, W, H);
+  cx.save();
+  cx.translate(-minX, -minY);
   cx.drawImage(img, 0, 0);
   objects.forEach(o => { if (selection.includes(o)) drawObject(cx, o, 1); });
+  cx.restore();
   const keep = objects.filter(o => !selection.includes(o));
+  const shift = o => {
+    if (o.kind === "ink") o.points.forEach(pt => { pt.x -= minX; pt.y -= minY; });
+    else if (o.pts) o.pts.forEach(pt => { pt.x -= minX; pt.y -= minY; });
+    else if (o.kind === "shape" || o.kind === "callout") {
+      o.x1 -= minX; o.y1 -= minY; o.x2 -= minX; o.y2 -= minY;
+      if (o.cx != null) { o.cx -= minX; o.cy -= minY; }
+    } else { o.x -= minX; o.y -= minY; }
+  };
+  if (minX !== 0 || minY !== 0) {
+    keep.forEach(shift);
+    if (minY < 0 && pageBaseH != null) pageBaseH -= minY;
+    view.x += minX * view.scale;
+    view.y += minY * view.scale;
+  }
   const dataUrl = c.toDataURL("image/jpeg", 0.92);
   const im = new Image();
   im.onload = () => {
     objects = keep;
     clearSelection();
-    setImage(im, dataUrl, true);
+    setImage(im, dataUrl, true, true);
   };
   im.src = dataUrl;
 };
@@ -1569,6 +1640,8 @@ function buildPalette() {
 
 function setTool(id) {
   activeTool = id;
+  document.getElementById("styleWrap").style.display =
+    ["line", "arrow", "rect", "ellipse"].includes(id) ? "flex" : "none";
   document.getElementById("mode-pan").classList.toggle("active", id === "pan");
   document.getElementById("mode-select").classList.toggle("active", id === "select");
   document.getElementById("mode-test").classList.toggle("active", id === "test");
@@ -1583,7 +1656,22 @@ function setTool(id) {
 document.getElementById("mode-pan").onclick = () => setTool("pan");
 document.getElementById("mode-select").onclick = () => setTool("select");
 document.getElementById("mode-test").onclick = () => setTool("test");
+let multiMode = false;
+document.getElementById("mode-multi").onclick = () => {
+  multiMode = !multiMode;
+  document.getElementById("mode-multi").classList.toggle("active", multiMode);
+  if (multiMode && activeTool !== "select") setTool("select");
+};
 document.getElementById("testYear").addEventListener("change", e => { testYearSel = +e.target.value; requestDraw(); });
+document.getElementById("lineStyleSel").addEventListener("change", e => {
+  lineStyle = e.target.value;
+  const targets = selection.filter(o => (o.kind === "shape" && (o.shape === "line" || o.shape === "arrow" || o.shape === "rect" || o.shape === "ellipse")));
+  if (targets.length) {
+    pushUndo();
+    targets.forEach(o => { o.ls = lineStyle; });
+    draw();
+  }
+});
 buildTabs();
 buildPalette();
 
@@ -1619,17 +1707,24 @@ customInput.type = "color";
 customInput.value = "#ff8800";
 customInput.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;border:none;padding:0;margin:0;cursor:pointer";
 customSw.appendChild(customInput);
-customInput.addEventListener("input", () => {
+let pickUndoDone = false;
+function applyCustomColour() {
   penColor = customInput.value;
   customSw.style.background = customInput.value;
   document.querySelectorAll(".swatch").forEach(x => x.classList.remove("active"));
   customSw.classList.add("active");
   if (selection.length) {
+    if (!pickUndoDone) { pushUndo(); pickUndoDone = true; }
     selection.forEach(o => { o.color = customInput.value; });
     requestDraw();
   }
+}
+customInput.addEventListener("input", applyCustomColour);
+customInput.addEventListener("change", () => {
+  applyCustomColour();
+  pickUndoDone = false;
+  scheduleAutosave();
 });
-customInput.addEventListener("change", () => { if (selection.length) { scheduleAutosave(); } });
 swatchesEl.appendChild(customSw);
 
 /* ================= Labels toggle ================= */
@@ -1650,14 +1745,14 @@ function migrate(obj) {
   return obj || [];
 }
 
-function setImage(im, dataUrl, keepObjects) {
+function setImage(im, dataUrl, keepObjects, keepView) {
   img = im;
   imgDataUrl = dataUrl;
   if (!keepObjects) { objects = []; undoStack = []; redoStack = []; pageBaseH = im.naturalHeight; currentProjId = null; }
   if (pageBaseH == null) pageBaseH = im.naturalHeight;
   clearSelection();
   document.getElementById("dropHint").classList.add("hidden");
-  fitView();
+  if (keepView) draw(); else fitView();
   scheduleAutosave();
 }
 
@@ -1821,7 +1916,21 @@ async function saveProject() {
       return;
     } catch (err) {
       if (err && err.name === "AbortError") return;   // user cancelled picker
-      fileHandle = null;                              // handle went stale — fall through
+      fileHandle = null;                              // handle went stale — re-prompt once
+      try {
+        fileHandle = await window.showSaveFilePicker({
+          suggestedName: name,
+          types: [{ description: "Block plan project", accept: { "application/json": [".json"] } }]
+        });
+        const w2 = await fileHandle.createWritable();
+        await w2.write(projectBlob());
+        await w2.close();
+        noteSaved("Saved");
+        return;
+      } catch (err2) {
+        if (err2 && err2.name === "AbortError") return;
+        fileHandle = null;
+      }
     }
   }
   deliverFile(projectBlob(), name, "application/json");
@@ -2082,6 +2191,7 @@ let currentStroke = null;
 let shapeStart = null;
 let moveOrig = null;   // array of JSON clones parallel to selection
 let activeHandle = null;
+let pendingDeselect = null;
 let moveStartImg = null;
 let moved = false;
 let downPos = null;
@@ -2206,8 +2316,17 @@ cv.addEventListener("pointerdown", e => {
     }
     const hit = hitObject(p.x, p.y);
     if (hit) {
-      if (!selection.includes(hit)) {
-        setSelection(hit.grp ? objects.filter(o => o.grp === hit.grp) : [hit]);
+      const multi = multiMode || e.shiftKey;
+      const members = hit.grp ? objects.filter(o => o.grp === hit.grp) : [hit];
+      pendingDeselect = null;
+      if (multi) {
+        if (selection.includes(hit)) {
+          pendingDeselect = members;   // tap = remove; drag = move group
+        } else {
+          setSelection([...selection, ...members.filter(m => !selection.includes(m))]);
+        }
+      } else if (!selection.includes(hit)) {
+        setSelection(members);
       }
       pushUndo();
       dragMode = "moveSel";
@@ -2285,7 +2404,7 @@ cv.addEventListener("pointermove", e => {
         pts: [{ x:shapeStart.x, y:shapeStart.y }, { x:ip.x, y:shapeStart.y }, { x:ip.x, y:ip.y }, { x:shapeStart.x, y:ip.y }],
         color:penColor, width:base.width, alpha:0.4 };
     } else {
-      tempShape = { kind:"shape", shape:activeTool, x1:shapeStart.x, y1:shapeStart.y, x2:ip.x, y2:ip.y, color:penColor, width:base.width };
+      tempShape = { kind:"shape", shape:activeTool, x1:shapeStart.x, y1:shapeStart.y, x2:ip.x, y2:ip.y, color:penColor, width:base.width, ls:lineStyle };
     }
     requestDraw();
     return;
@@ -2305,6 +2424,7 @@ cv.addEventListener("pointermove", e => {
       else if (o.pts) o.pts = orig.pts.map(pt => ({ x:pt.x + dx, y:pt.y + dy }));
       else if (o.kind === "shape" || o.kind === "callout") {
         o.x1 = orig.x1 + dx; o.y1 = orig.y1 + dy; o.x2 = orig.x2 + dx; o.y2 = orig.y2 + dy;
+        if (orig.cx != null) { o.cx = orig.cx + dx; o.cy = orig.cy + dy; }
       } else { o.x = orig.x + dx; o.y = orig.y + dy; }
     });
     requestDraw();
@@ -2361,6 +2481,7 @@ function endPointer(e) {
         pushUndo();
         objects.push(tempShape);
         setSelection([tempShape]);
+        if (tempShape.shape === "hatch") setTool("select");
       }
     }
     tempShape = null; shapeStart = null; dragMode = null;
@@ -2391,6 +2512,13 @@ function endPointer(e) {
     if (!moved) {
       // was a tap on an object, not a drag — undo entry not needed
       if (undoStack.length) undoStack.pop();
+      if (pendingDeselect) {
+        setSelection(selection.filter(o => !pendingDeselect.includes(o)));
+        pendingDeselect = null;
+        moveOrig = null; dragMode = null;
+        draw();
+        return;
+      }
       // double-tap on a single selected device opens details
       const now = Date.now();
       if (selection.length === 1 &&
@@ -2400,6 +2528,7 @@ function endPointer(e) {
       }
       lastTap = { t: now, x: p.x, y: p.y };
     } else { scheduleAutosave(); }
+    pendingDeselect = null;
     moveOrig = null; dragMode = null;
     draw();
     return;
@@ -2676,7 +2805,7 @@ function resizePage(newH) {
   cx.drawImage(img, 0, 0);
   const dataUrl = c.toDataURL("image/jpeg", 0.92);
   const im = new Image();
-  im.onload = () => setImage(im, dataUrl, true);
+  im.onload = () => setImage(im, dataUrl, true, true);
   im.src = dataUrl;
 }
 document.getElementById("btnPageSpace").onclick = () => {
@@ -2730,6 +2859,13 @@ function reportLines() {
   d.failed.forEach(o => {
     const t = TYPE_MAP[o.type];
     lines.push(["t", "✗ " + (t ? t.label : o.type) + (symRef(o) ? " — " + symRef(o) : "") + (o.info ? " — " + o.info : "")]);
+  });
+  const noted = objects.filter(o => o.kind === "sym" && o.info);
+  lines.push(["h2", "Items with notes (" + noted.length + ")"]);
+  if (!noted.length) lines.push(["t", "None recorded"]);
+  noted.forEach(o => {
+    const t = TYPE_MAP[o.type];
+    lines.push(["t", "! " + (t ? t.label : o.type) + (symRef(o) ? " — " + symRef(o) : "") + " — " + o.info]);
   });
   lines.push(["h2", "Testing"]);
   [2026, 2027, 2028, 2029].forEach(y => {
