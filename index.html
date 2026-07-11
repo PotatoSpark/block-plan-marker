@@ -106,13 +106,32 @@
   #focusBar .btn { padding:6px 9px; }
   #testCounter { cursor:grab; touch-action:none; user-select:none; pointer-events:auto; }
   #toolTip { position:fixed; display:none; z-index:99; background:#0d0f12; color:#fff; border:1px solid #556; border-radius:8px; padding:6px 10px; font-size:12.5px; max-width:250px; pointer-events:none; box-shadow:0 3px 12px rgba(0,0,0,.5); }
+
+  /* compact chrome (~12% smaller) + collapsible tool chest */
+  #sideTabs { width:50px; }
+  .tab { padding:6px 2px; font-size:8.5px; }
+  .tab .ti { font-size:17px; }
+  #palette { min-height:64px; padding:5px 8px; }
+  .pal { min-width:50px; padding:4px 6px; }
+  .pal canvas, .pal .sym { width:30px; height:30px; }
+  .pal .sym { font-size:18px; }
+  .pal .lbl { font-size:8.5px; }
+  .pal .cnt { font-size:10px; min-height:12px; }
+  #topbar .btn, #bottombar .btn { padding:6px 7px; font-size:11.5px; }
+  .modebtn { font-size:15px; min-width:46px; padding:3px 8px; }
+  .modebtn.testmode { min-width:58px; }
+  #toolrow { padding:5px 8px 0 8px; }
+  body.chesthide #sideTabs, body.chesthide #palette { display:none; }
+  #chestHandle { position:absolute; left:0; top:50%; transform:translateY(-50%); z-index:30; width:22px; height:56px; display:flex; align-items:center; justify-content:center; background:rgba(35,39,45,.9); border:1px solid #444; border-left:none; border-radius:0 10px 10px 0; color:#bbb; font-size:16px; cursor:pointer; user-select:none; touch-action:manipulation; }
+  #chestHandle:active { background:#3a2b27; }
+  body.focusmode #chestHandle { display:none !important; }
 </style>
 </head>
 <body>
 <div id="app">
 
   <div id="topbar">
-    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.21 beta</span></span>
+    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.22 beta</span></span>
     <button class="btn" id="btnPlans" title="Plans saved on this device">&#9776; Plans</button>
     <button class="btn" id="btnNew" title="Start a new plan">&#65291; New</button>
     <button class="btn" id="btnOpenProj" title="Open a PDF plan or saved project">&#128194; Open</button>
@@ -160,6 +179,7 @@
   </div>
   <div id="stage">
     <canvas id="cv"></canvas>
+    <div id="chestHandle" title="Hide tool chest">&#8249;</div>
     <div id="dropHint">
       <div class="big">Load your block plan to start</div>
       <div>Tap <b>&#128247; Photo</b> (opens camera on phone) for a photo or image<br>
@@ -2577,7 +2597,7 @@ document.getElementById("btnPlans").onclick = () => {
 document.getElementById("plansClose").onclick = () => document.getElementById("plansModal").classList.remove("show");
 document.getElementById("planSaveNew").onclick = async () => {
   if (!img) { alert("Load a block plan first."); return; }
-  const name = window.prompt("Plan name (e.g. HNEH Ward 3 – Level 2):");
+  const name = window.prompt("Plan name (e.g. Main Building – Level 2):");
   if (!name || !name.trim()) return;
   const id = "p" + Date.now();
   await idbPut("proj:" + id, planSnapshot());
@@ -3960,6 +3980,19 @@ function syncFocusBar() {
 }
 document.getElementById("btnFocus").onclick = () => setFocusMode(true);
 document.getElementById("focusExit").onclick = () => setFocusMode(false);
+
+/* ---- collapsible tool chest ---- */
+function setChest(hide) {
+  document.body.classList.toggle("chesthide", hide);
+  try { localStorage.setItem("bpm-chest", hide ? "1" : "0"); } catch (e) {}
+  const h = document.getElementById("chestHandle");
+  h.innerHTML = hide ? "&#8250;" : "&#8249;";
+  h.title = hide ? "Show tool chest" : "Hide tool chest";
+  resizeCanvas();
+  draw();
+}
+document.getElementById("chestHandle").onclick = () => setChest(!document.body.classList.contains("chesthide"));
+try { if (localStorage.getItem("bpm-chest") === "1") setChest(true); } catch (e) {}
 ["pan", "select", "test"].forEach(m => {
   document.getElementById("focus-" + m).onclick = () => { document.getElementById("mode-" + m).click(); syncFocusBar(); };
 });
