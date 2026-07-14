@@ -134,7 +134,7 @@
 <div id="app">
 
   <div id="topbar">
-    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.30 beta</span></span>
+    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.31 beta</span></span>
     <button class="btn" id="btnPlans" title="Plans saved on this device">&#9776; Plans</button>
     <button class="btn" id="btnNew" title="Start a new plan">&#65291; New</button>
     <button class="btn" id="btnOpenProj" title="Open a PDF plan or saved project">&#128194; Open</button>
@@ -200,6 +200,7 @@
       <select id="lineStyleSel" style="background:#1a1d21;color:#e8e8e8;border:1px solid #444;border-radius:6px;padding:6px">
         <option value="solid">Solid</option><option value="dash">Dashed</option><option value="dot">Dotted</option>
       </select>
+      <label style="display:flex;align-items:center;gap:4px;margin-left:6px" title="After drawing, switch to Select with the new shape selected"><input type="checkbox" id="selAfterOn" style="width:16px;height:16px"> then select</label>
     </div>
     <div id="testWrap" style="display:none;align-items:center;gap:5px;font-size:12px;color:#aaa">Testing year
       <select id="testYear" style="background:#1a1d21;color:#e8e8e8;border:1px solid #444;border-radius:6px;padding:6px">
@@ -2723,6 +2724,9 @@ document.getElementById("lineStyleSel").addEventListener("change", e => {
 let lineEnds = { line:{ hs:"none", he:"none" }, arrow:{ hs:"arrow", he:"none" } };
 try { const le = JSON.parse(localStorage.getItem("bpm-lineends") || "null"); if (le && le.line && le.arrow) lineEnds = le; } catch (e) {}
 function saveLineEnds() { try { localStorage.setItem("bpm-lineends", JSON.stringify(lineEnds)); } catch (e) {} }
+let selAfterDraw = localStorage.getItem("bpm-selafter") !== "0";   // default ON: drawing a shape selects it straight away
+document.getElementById("selAfterOn").checked = selAfterDraw;
+document.getElementById("selAfterOn").onchange = ev => { selAfterDraw = ev.target.checked; localStorage.setItem("bpm-selafter", selAfterDraw ? "1" : "0"); };
 function applyEndSel(which, val) {
   if (activeTool === "line" || activeTool === "arrow") { lineEnds[activeTool][which] = val; saveLineEnds(); }
   const targets = selection.filter(o => o.kind === "shape" && (o.shape === "line" || o.shape === "arrow"));
@@ -4378,7 +4382,7 @@ function endPointer(e) {
         pushUndo();
         objects.push(tempShape);
         setSelection([tempShape]);
-        if (tempShape.shape === "hatch") setTool("select");
+        if (tempShape.shape === "hatch" || selAfterDraw) setTool("select");
       }
     }
     tempShape = null; shapeStart = null; dragMode = null;
