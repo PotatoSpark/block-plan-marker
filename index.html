@@ -134,12 +134,13 @@
 <div id="app">
 
   <div id="topbar">
-    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.32 beta</span></span>
+    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.33 beta</span></span>
     <button class="btn" id="btnPlans" title="Plans saved on this device">&#9776; Plans</button>
     <button class="btn" id="btnNew" title="Start a new plan">&#65291; New</button>
     <button class="btn" id="btnOpenProj" title="Open a PDF plan or saved project">&#128194; Open</button>
     <button class="btn" id="btnPhoto" title="Photo of the plan (camera on tablet/phone)">&#128247; Photo</button>
     <button class="btn" id="btnSaveProj" title="Save project file">&#128190; Save</button>
+    <button class="btn" id="btnSaveAs" title="Save as a NEW project file (always asks where)">Save As</button>
     <button class="btn" id="btnFit" title="Fit the whole plan on screen">Fit all</button>
     <button class="btn" id="btnPageSpace" title="Add white space below the plan">Page +</button>
     <button class="btn" id="btnPageMinus" title="Remove added white space">Page &minus;</button>
@@ -370,6 +371,24 @@
   </div>
 </div>
 
+<div class="modal" id="fsBattModal">
+  <div class="modalbox" style="max-width:430px;width:94vw;text-align:left">
+    <h3 style="margin-bottom:2px">Battery calculator</h3>
+    <div style="font-size:12px;color:#999;margin-bottom:10px">Required capacity &mdash; enter loads in AMPS</div>
+    <label>Quiescent load Iq (A)</label><input type="text" inputmode="decimal" id="battIq" placeholder="e.g. 0.35">
+    <label style="margin-top:8px">Alarm load IA (A)</label><input type="text" inputmode="decimal" id="battIA" placeholder="e.g. 1.8">
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <div style="flex:1"><label>Standby</label><select id="battStby" style="width:100%"><option value="24">24 h</option><option value="48">48 h</option><option value="72">72 h</option></select></div>
+      <div style="flex:1"><label>Alarm</label><select id="battAlm" style="width:100%"><option value="0.5">30 min</option><option value="1">60 min</option></select></div>
+      <div style="flex:1"><label>Factor</label><input type="text" inputmode="decimal" id="battFac" value="1.25"></div>
+    </div>
+    <div id="battOut" style="margin-top:12px;padding:10px 12px;border:1px solid #2fae57;border-radius:8px;font-size:14px;color:#7ddb8f">Enter Iq and IA</div>
+    <h3 style="margin:16px 0 2px;font-size:15px">Discharge test (AS 1851-2012 App F)</h3>
+    <label>Installed battery capacity (Ah)</label><input type="text" inputmode="decimal" id="battAh" placeholder="e.g. 18">
+    <div id="battOut2" style="margin-top:8px;padding:10px 12px;border:1px solid #444;border-radius:8px;font-size:13.5px;color:#ccc">Enter the installed Ah</div>
+    <div class="row" style="margin-top:12px"><button class="btn" id="battClose">Close</button></div>
+  </div>
+</div>
 <div class="modal" id="timerModal">
   <div class="modalbox" style="max-width:380px;text-align:center">
     <h3>Timer</h3>
@@ -529,7 +548,8 @@ const TOOLS_TAB = [
   { id:"camera", label:"Camera",      icon:"📷" },
   { id:"photos", label:"Site photos", icon:"🖼" },
   { id:"find",    label:"Find device", icon:"🔎" },
-  { id:"measure", label:"Measure",     icon:"📏" }
+  { id:"measure", label:"Measure",     icon:"📏" },
+  { id:"battcalc", label:"Battery calc", icon:"🔋" }
 ];
 const MARKUP_TOOLS = [
   { id:"pen",     label:"Pen",         icon:"✏️" },
@@ -2434,6 +2454,7 @@ function buildPalette() {
       if (t.id === "timer") { openTimer(); return; }
       if (t.id === "photos") { openPhotosGallery(); return; }
       if (t.id === "find") { openFind(); return; }
+      if (t.id === "battcalc") { openBattCalc(); return; }
       if (t.id !== "hatch" && MODIFY_TOOLS.some(m => m.id === t.id)) { modifyAction(t.id); return; }
       setTool(t.id);
     };
@@ -3126,7 +3147,7 @@ async function saveProject() {
       const w = await fileHandle.createWritable();
       await w.write(projectBlob());
       await w.close();
-      noteSaved("Saved");
+      noteSaved("Saved" + (fileHandle && fileHandle.name ? " \u2014 " + fileHandle.name : ""));
       return;
     } catch (err) {
       if (err && err.name === "AbortError") return;   // user cancelled picker
@@ -3139,7 +3160,7 @@ async function saveProject() {
         const w2 = await fileHandle.createWritable();
         await w2.write(projectBlob());
         await w2.close();
-        noteSaved("Saved");
+        noteSaved("Saved" + (fileHandle && fileHandle.name ? " \u2014 " + fileHandle.name : ""));
         return;
       } catch (err2) {
         if (err2 && err2.name === "AbortError") return;
@@ -3156,6 +3177,29 @@ async function saveProject() {
   noteSaved("Exported");
 }
 document.getElementById("btnSaveProj").onclick = saveProject;
+document.getElementById("btnSaveAs").onclick = () => { fileHandle = null; saveProject(); };
+function openBattCalc() { document.getElementById("fsBattModal").classList.add("show"); battCalc(); }
+function battCalc() {
+  const iq = parseFloat(document.getElementById("battIq").value);
+  const ia = parseFloat(document.getElementById("battIA").value);
+  const h = parseFloat(document.getElementById("battStby").value) || 24;
+  const a = parseFloat(document.getElementById("battAlm").value) || 0.5;
+  const fac = parseFloat(document.getElementById("battFac").value) || 1.25;
+  const out = document.getElementById("battOut");
+  if (isFinite(iq) && isFinite(ia)) {
+    const ah = fac * (iq * h + ia * a);
+    out.innerHTML = "Required capacity: <b style=\"font-size:17px\">" + (Math.round(ah * 100) / 100) + " Ah</b>" +
+      "<div style=\"font-size:11.5px;color:#999;margin-top:3px\">" + fac + " \u00d7 (" + iq + " A \u00d7 " + h + " h  +  " + ia + " A \u00d7 " + a + " h)</div>";
+  } else out.textContent = "Enter Iq and IA";
+  const cap = parseFloat(document.getElementById("battAh").value);
+  const out2 = document.getElementById("battOut2");
+  if (isFinite(cap) && cap > 0) {
+    out2.innerHTML = "Test load: <b>" + (Math.round(cap * 0.8 * 10) / 10) + " A</b> (0.8 \u00d7 C) \u00b7 apply for <b>25 min</b> \u00b7 pass if voltage stays \u2265 <b>21.0 V</b> (24 V set)" +
+      "<div style=\"font-size:11.5px;color:#888;margin-top:3px\">Battery must be fully charged first; subtract quiescent current if testing in circuit. Record load current + final voltage.</div>";
+  } else out2.textContent = "Enter the installed Ah";
+}
+["battIq", "battIA", "battStby", "battAlm", "battFac", "battAh"].forEach(id => document.getElementById(id).addEventListener("input", battCalc));
+document.getElementById("battClose").onclick = () => document.getElementById("fsBattModal").classList.remove("show");
 
 function loadProjectFile(file) {
   const reader = new FileReader();
@@ -3602,6 +3646,8 @@ function timerTick() {
       timerHalt();
       try { localStorage.removeItem("bpm-timer"); } catch (e) {}
       if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+      fsBeepPlay();
+      try { if ("Notification" in window && Notification.permission === "granted") new Notification("\u23f1 Timer finished", { body: "Time is up \u2014 check the lights!" }); } catch (e) {}
       alert("⏱ Time is up — check the lights!");
       return;
     }
@@ -3613,9 +3659,34 @@ function timerTick() {
   const live = document.getElementById("timerLive");
   if (document.getElementById("timerModal").classList.contains("show")) live.textContent = text;
 }
+let fsBeepCtx = null;
+function fsBeepPrep() {
+  try {
+    fsBeepCtx = fsBeepCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (fsBeepCtx.state === "suspended") fsBeepCtx.resume();
+  } catch (e) {}
+}
+function fsBeepPlay() {
+  try {
+    if (!fsBeepCtx) return;
+    if (fsBeepCtx.state === "suspended") fsBeepCtx.resume();
+    for (let i = 0; i < 4; i++) {
+      const o = fsBeepCtx.createOscillator(), g = fsBeepCtx.createGain();
+      o.frequency.value = i % 2 ? 660 : 880;
+      o.connect(g); g.connect(fsBeepCtx.destination);
+      const t0 = fsBeepCtx.currentTime + i * 0.45;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.4, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.38);
+      o.start(t0); o.stop(t0 + 0.42);
+    }
+  } catch (e) {}
+}
 function timerBegin(down, minutes) {
   timerHalt();
   if (down) {
+    fsBeepPrep();
+    try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); } catch (e) {}
     timerEndsAt = Date.now() + minutes * 60000;
     timerStartedAt = null;
     try { localStorage.setItem("bpm-timer", String(timerEndsAt)); } catch (e) {}
