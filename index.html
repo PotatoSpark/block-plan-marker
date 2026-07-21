@@ -134,7 +134,7 @@
 <div id="app">
 
   <div id="topbar">
-    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.35.1 beta</span></span>
+    <span class="title">BLOCK PLAN MARKER <span style="color:#888;font-weight:400;font-size:11px">v1.36 beta</span></span>
     <button class="btn" id="btnPlans" title="Plans saved on this device">&#9776; Plans</button>
     <button class="btn" id="btnNew" title="Start a new plan">&#65291; New</button>
     <button class="btn" id="btnOpenProj" title="Open a PDF plan or saved project">&#128194; Open</button>
@@ -397,7 +397,7 @@
 <div class="modal" id="annModal" style="z-index:121">
   <div class="modalbox" style="max-width:560px;width:96vw;max-height:86vh;overflow-y:auto;text-align:left">
     <h3 style="margin-bottom:4px">&#128203; Fire Alarm Annuals converter</h3>
-    <div style="font-size:12px;color:#999;margin-bottom:10px">Panel program report (PDF / text / CSV / xlsx) &rarr; populated "Fire Alarm Annuals 2026&ndash;2030" workbook. Everything stays on this device.</div>
+    <div style="font-size:12px;color:#999;margin-bottom:10px">Panel program report &rarr; populated "Fire Alarm Annuals 2026&ndash;2030" workbook. Reads MX1 report PDFs, F4000/MX4428 text config dumps, CSV/tab exports and xlsx point lists. Everything stays on this device.</div>
     <div style="font-weight:700;font-size:13px;color:#7ddb8f;margin:6px 0 4px">1 &middot; Base workbook template</div>
     <div id="annBaseRow" style="display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:8px">
       <span id="annBaseName" style="flex:1;color:#999">No template stored yet</span>
@@ -413,7 +413,7 @@
     <div id="annStatus" style="font-size:12.5px;color:#aaa;margin-bottom:8px"></div>
     <div id="annTypes" style="display:none;margin-bottom:8px">
       <div style="font-weight:700;font-size:13px;color:#7ddb8f;margin:6px 0 4px">4 &middot; Device types to include</div>
-      <div style="font-size:11.5px;color:#888;margin-bottom:6px">One-decimal-point rule already applied (1.40 in &middot; 1.40.1 / L1D1 out). Untick anything that is not a testable detection device.</div>
+      <div style="font-size:11.5px;color:#888;margin-bottom:6px">Testable field devices are pre-ticked. Untick anything that should not go into the workbook.</div>
       <div id="annTypeList" style="display:flex;flex-direction:column;gap:4px;font-size:13px"></div>
       <div id="annCount" style="margin-top:6px;font-size:13px;color:#7ddb8f"></div>
     </div>
@@ -569,6 +569,18 @@ const TYPES = [
   { id:"bglass",   tab:"exit", label:"Break Glass",  glyph:"bglass",   text:"",      color:"#1b8a3f" },
   { id:"spitfire", tab:"exit", label:"Spitfire",     glyph:"spitfire", text:"",      color:"#1b8a3f" },
   { id:"db",       tab:"elec", label:"DB Board",     glyph:"db",       text:"",      color:"#111111" },
+  { id:"batten",   tab:"elec", label:"Batten",       glyph:"batten",  text:"", color:"#111111" },
+  { id:"embatten", tab:"elec", label:"Em. Batten",   glyph:"batten",  text:"", color:"#111111", em:true },
+  { id:"downlt",   tab:"elec", label:"Downlight",    glyph:"downlt",  text:"", color:"#111111" },
+  { id:"sqlum",    tab:"elec", label:"Square light", glyph:"lum",     text:"", color:"#111111", lw:1, lh:1 },
+  { id:"emsqlum",  tab:"elec", label:"Em. Square",   glyph:"lum",     text:"", color:"#111111", lw:1, lh:1, em:true },
+  { id:"rectlum",  tab:"elec", label:"Rect light",   glyph:"lum",     text:"", color:"#111111", lw:1.7, lh:1 },
+  { id:"emrectlum",tab:"elec", label:"Em. Rect",     glyph:"lum",     text:"", color:"#111111", lw:1.7, lh:1, em:true },
+  { id:"troffer",  tab:"elec", label:"Troffer",      glyph:"lum",     text:"", color:"#111111", lw:2.4, lh:0.7, inner:true },
+  { id:"emtroffer",tab:"elec", label:"Em. Troffer",  glyph:"lum",     text:"", color:"#111111", lw:2.4, lh:0.7, inner:true, em:true },
+  { id:"exfan",    tab:"elec", label:"Exhaust fan",  glyph:"exfan",   text:"", color:"#111111" },
+  { id:"ceilfan",  tab:"elec", label:"Ceiling fan",  glyph:"ceilfan", text:"", color:"#111111" },
+  { id:"walllt",   tab:"elec", label:"Wall light",   glyph:"walllt",  text:"", color:"#111111" },
   { id:"door",     tab:"bldg", label:"Door",         glyph:"door",     text:"",      color:"#111111" },
   { id:"dbldoor",  tab:"bldg", label:"Double Door",  glyph:"dbldoor",  text:"",      color:"#111111" },
   { id:"sldoor",   tab:"bldg", label:"Sliding Door", glyph:"sldoor",   text:"",      color:"#111111" },
@@ -744,6 +756,11 @@ function symDims(o) {   // image-space width/height (before rotation)
   else if (t.glyph === "lstair") { w = s * 1.45; h = s * 1.45; }
   else if (t.glyph === "db") { w = s * 1.9; h = s * 1.15; }
   else if (t.glyph === "campin") { w = s * 1.15; h = s * 1.5; }
+  else if (t.glyph === "batten") { w = s * 2.2; h = s * 0.6; }
+  else if (t.glyph === "lum") { w = s * (t.lw || 1); h = s * (t.lh || 1); }
+  else if (t.glyph === "downlt") { w = s * 0.75; h = s * 0.75; }
+  else if (t.glyph === "ceilfan") { w = s * 1.3; h = s * 1.3; }
+  else if (t.glyph === "walllt") { w = s * 1.5; h = s * 0.8; }
   const rr = ((o.rot || 0) % 360) * Math.PI / 180;
   if (rr) {
     const ca = Math.abs(Math.cos(rr)), sa = Math.abs(Math.sin(rr));
@@ -753,6 +770,14 @@ function symDims(o) {   // image-space width/height (before rotation)
   return { w, h };
 }
 
+function drawEmMark(c, col, d) {   // mini quartered "emergency fitting" roundel (same motif as spitfire)
+  const r = d / 2;
+  c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); c.fillStyle = "#ffffff"; c.fill();
+  c.fillStyle = col;
+  c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, r, Math.PI * 0.75, Math.PI * 1.25); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, r, -Math.PI * 0.25, Math.PI * 0.25); c.closePath(); c.fill();
+  c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); c.lineWidth = Math.max(1, d * 0.09); c.strokeStyle = col; c.stroke();
+}
 function drawSym(c, o, scale) {
   const t = TYPE_MAP[o.type];
   if (!t) return;
@@ -1076,6 +1101,44 @@ function drawSym(c, o, scale) {
     c.strokeStyle = "#ffffff"; c.lineWidth = r * 0.12; c.lineCap = "round";
     c.beginPath(); c.moveTo(-r * 0.3, -r * 0.52); c.lineTo(r * 0.3, -r * 0.52); c.stroke();
     c.beginPath(); c.moveTo(r * 0.05, -r * 0.45); c.lineTo(r * 0.42, -r * 0.2); c.stroke();
+  } else if (t.glyph === "batten") {
+    const w = s * 2.2, cap = s * 0.5;
+    c.strokeStyle = col; c.lineWidth = Math.max(1.2, s * 0.09); c.lineCap = "round";
+    c.beginPath();
+    c.moveTo(-w / 2, 0); c.lineTo(w / 2, 0);
+    c.moveTo(-w / 2, -cap / 2); c.lineTo(-w / 2, cap / 2);
+    c.moveTo(w / 2, -cap / 2); c.lineTo(w / 2, cap / 2);
+    c.stroke();
+    if (t.em) drawEmMark(c, col, s * 0.55);
+  } else if (t.glyph === "lum") {
+    const w = s * (t.lw || 1), h = s * (t.lh || 1);
+    c.fillStyle = "#ffffff"; c.strokeStyle = col; c.lineWidth = Math.max(1.2, s * 0.08);
+    c.beginPath(); c.rect(-w / 2, -h / 2, w, h); c.fill(); c.stroke();
+    if (t.inner) { c.lineWidth = Math.max(1, s * 0.045); c.beginPath(); c.rect(-w / 2 + w * 0.06, -h / 2 + h * 0.18, w * 0.88, h * 0.64); c.stroke(); }
+    if (t.em) drawEmMark(c, col, Math.min(w, h) * 0.62);
+  } else if (t.glyph === "downlt") {
+    c.fillStyle = "#ffffff"; c.strokeStyle = col; c.lineWidth = Math.max(1.2, s * 0.1);
+    c.beginPath(); c.arc(0, 0, s * 0.32, 0, Math.PI * 2); c.fill(); c.stroke();
+  } else if (t.glyph === "exfan") {
+    const r = s / 2;
+    c.fillStyle = "#ffffff"; c.strokeStyle = col; c.lineWidth = Math.max(1.2, s * 0.08);
+    c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.beginPath();
+    for (let k = 0; k < 3; k++) { const a = -Math.PI / 2 + k * Math.PI * 2 / 3; c.moveTo(0, 0); c.lineTo(r * Math.cos(a), r * Math.sin(a)); }
+    c.stroke();
+  } else if (t.glyph === "ceilfan") {
+    c.strokeStyle = col; c.fillStyle = "#ffffff"; c.lineWidth = Math.max(1.1, s * 0.07);
+    for (let k = 0; k < 4; k++) {
+      c.save(); c.rotate(k * Math.PI / 2);
+      c.beginPath(); c.ellipse(0, -s * 0.42, s * 0.14, s * 0.30, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.restore();
+    }
+    c.beginPath(); c.arc(0, 0, s * 0.13, 0, Math.PI * 2); c.fill(); c.stroke();
+  } else if (t.glyph === "walllt") {
+    c.strokeStyle = col; c.fillStyle = "#ffffff"; c.lineWidth = Math.max(1.2, s * 0.09); c.lineCap = "round";
+    c.beginPath(); c.moveTo(-s * 0.72, -s * 0.28); c.lineTo(-s * 0.72, s * 0.28); c.stroke();
+    c.beginPath(); c.moveTo(-s * 0.72, 0); c.lineTo(-s * 0.30, 0); c.stroke();
+    c.beginPath(); c.arc(0, 0, s * 0.30, 0, Math.PI * 2); c.fill(); c.stroke();
   } else if (t.glyph === "campin") {
     // map pin with a camera; the lens fills solid once a photo is attached
     const r = s * 0.5;
@@ -3194,15 +3257,22 @@ function dlAnchor(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 function deliverFile(blob, name, mime) {
+  // Resolves "shared" | "downloaded" | "cancelled" so callers can react when the user
+  // backs out of the iOS share sheet — a cancelled share used to look exactly like a
+  // successful save (root cause of the 21 Jul lost-work incident).
   const file = new File([blob], name, { type: mime });
   if (canShareFile(file)) {
     // no title: iOS saves it as a stray .txt beside the file. If iOS blocks the share
     // sheet (stale tap after a dialog), fall back to a plain download so the save is
     // never silently lost (iPad/iPhone Save As fix, V1.0)
-    navigator.share({ files: [file] }).catch(err => { if (!err || err.name !== "AbortError") dlAnchor(blob, name); });
-    return;
+    return navigator.share({ files: [file] }).then(() => "shared", err => {
+      if (err && err.name === "AbortError") return "cancelled";
+      dlAnchor(blob, name);
+      return "downloaded";
+    });
   }
   dlAnchor(blob, name);
+  return Promise.resolve("downloaded");
 }
 function askFileName(def, cb) {
   // in-page replacement for prompt(): the Save tap is a FRESH user gesture, so the
@@ -3276,8 +3346,10 @@ async function saveProject() {
   // iOS share sheet needs (prompt() here made Save As silently do nothing on iPad/iPhone)
   askFileName(name, nm => {
     if (!/\.json$/i.test(nm)) nm += ".json";
-    deliverFile(projectBlob(), nm, "application/json");
-    noteSaved("Exported");
+    deliverFile(projectBlob(), nm, "application/json").then(how => {
+      if (how === "cancelled") { alert("\u26a0 Save cancelled \u2014 the plan was NOT saved to a file."); noteSaved("\u26a0 Save cancelled"); }
+      else noteSaved("Exported " + nm);
+    });
   });
 }
 document.getElementById("btnSaveProj").onclick = saveProject;
@@ -3416,10 +3488,11 @@ let autosaveTimer = null;
 let autosaveDirty = false;
 function scheduleAutosave() { autosaveDirty = true; }
 async function autosaveNow() {
-  if (!img || !autosaveDirty) return;
+  if (!autosaveDirty) return;
+  if (!img && !siteNotes && !(sitePhotos && sitePhotos.length)) return;   // nothing worth keeping yet
   autosaveDirty = false;
   try {
-    syncLevel();
+    if (img) syncLevel();
     await idbPut("autosave", { levels:levels, cur:curLevel, labelsOn:labelsOn, siteNotes:siteNotes, sitePhotos:sitePhotos, t:Date.now() });
     if (currentProjId) {
       await idbPut("proj:" + currentProjId, planSnapshot());
@@ -3428,7 +3501,10 @@ async function autosaveNow() {
       if (en) { en.t = Date.now(); en.thumb = makeThumb(); await idbPut("projIndex", ix); }
     }
     noteSaved("Autosaved");
-  } catch (e) { /* storage full or unavailable — ignore */ }
+  } catch (e) {
+    noteSaved("\u26a0 AUTOSAVE FAILED");
+    if (!window._asWarned) { window._asWarned = 1; alert("\u26a0 Autosave failed (device storage may be full). Your work is NOT being backed up on this device \u2014 free up space or save/export your work now."); }
+  }
 }
 autosaveTimer = setInterval(autosaveNow, 30000);
 document.addEventListener("visibilitychange", () => { if (document.hidden) autosaveNow(); });
@@ -3441,6 +3517,12 @@ async function tryRestoreAutosave() {
     a.levels.forEach(lv => { lv.objects = migrate(lv.objects); });
     const cur = Math.min(a.cur || 0, a.levels.length - 1);
     const lv = a.levels[cur];
+    if (!lv || !lv.image) {   // notes/photos-only autosave (no plan image was loaded)
+      siteNotes = a.siteNotes || "";
+      sitePhotos = a.sitePhotos || [];
+      lastSaveNote = "Restored notes autosave from " + new Date(a.t).toTimeString().slice(0, 5); updateStatus();
+      return;
+    }
     const im = new Image();
     im.onload = () => {
       levels = a.levels; curLevel = cur;
@@ -5572,6 +5654,59 @@ function annHeaderMap(cells) {
   };
   return (m.pt >= 0 && (m.label >= 0 || m.type >= 0)) ? m : null;
 }
+function annIsF4000(text) { return /^\s*Addressable Loop\s+\d+:\s*$/m.test(text) && /\bL\d+D\d+\b/.test(text); }
+function annParseF4000(text) {
+  // Vigilant F4000 / MX4428-style panel config dump: "Addressable Loop N:" sections with
+  // tab-separated Point / Device Label / DeviceType / Zone# columns, plus RingN: panel I/O rows.
+  const lines = text.split(/\r?\n/);
+  const devs = [], seen = {};
+  let section = "", cols = null;
+  const AUXDEV = /^(RELAY|IO\b|SOUND|BELL|STROBE|AV\b|MODULE|OUT|SUPPLY|PSU|MIM|CIM|DIM|RIM|LED)/i;
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    const sec = ln.match(/^([A-Za-z][A-Za-z0-9 ]*?)\s*:\s*$/);
+    if (sec) { section = sec[1]; cols = null; continue; }
+    if (!ln.trim()) continue;
+    const cells = ln.split("\t").map(s => s.trim());
+    if (/^Point$/i.test(cells[0] || "")) {
+      cols = {};
+      cells.forEach((c0, ix) => {
+        const c = c0.toLowerCase();
+        if (c === "point") cols.pt = ix;
+        else if (c.indexOf("label") >= 0) cols.label = ix;
+        else if (c.indexOf("devicetype") >= 0 || c.indexOf("pointtype") >= 0 || c === "device type") cols.type = ix;
+        else if (c.indexOf("zone#") >= 0 || c === "zone") cols.zone = ix;
+      });
+      continue;
+    }
+    if (!cols || cols.pt == null) continue;
+    const pt = (cells[cols.pt] || "").trim();
+    if (!pt || seen[pt]) continue;
+    if (/^Addressable Loop/i.test(section)) {
+      if (!/^L\d+D\d+/i.test(pt)) continue;
+      const ty = (cells[cols.type] || "").trim() || "(no type)";
+      seen[pt] = 1;
+      devs.push({ pt: pt, zone: cols.zone != null ? (cells[cols.zone] || "") : "", label: cols.label != null ? (cells[cols.label] || "") : "", type: ty, f4: 1, grp: AUXDEV.test(ty) ? "aux" : "det" });
+    } else if (/^Ring\s*\d+/i.test(section)) {
+      const label = cols.label != null ? (cells[cols.label] || "") : "";
+      const isIn = /\.(Z|I)\d+$/i.test(pt), isOut = /\.O\d+$/i.test(pt);
+      if (!isIn && !isOut) continue;
+      seen[pt] = 1;
+      const pre = (isIn && /BREAK\s*GLASS|\bMCP\b|CALL\s*POINT|\bWIP\b|MANUAL/i.test(label)) ? 1 : 0;
+      devs.push({ pt: pt, zone: "", label: label,
+                  type: pre ? "Call point / break glass" : ((cols.type != null && (cells[cols.type] || "").trim()) || (isIn ? "Panel input" : "Panel output")),
+                  f4: 1, grp: isIn ? "input" : "aux", pre: pre });
+    }
+  }
+  return devs;
+}
+function annSay(ok, msg) {
+  const st = document.getElementById("annStatus");
+  st.style.cssText = ok
+    ? "font-size:13.5px;font-weight:700;color:#7ddb8f;background:rgba(27,138,63,.12);border:1px solid #1b8a3f;border-radius:8px;padding:10px;margin-bottom:8px"
+    : "font-size:13.5px;font-weight:700;color:#ff8d7a;background:rgba(196,0,0,.12);border:1px solid #c40000;border-radius:8px;padding:10px;margin-bottom:8px";
+  st.textContent = msg;
+}
 function annParseDelim(text) {
   const lines = text.split(/\r?\n/);
   let delim = null, map = null, start = -1;
@@ -5871,44 +6006,58 @@ document.getElementById("annSrcInput").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = "";
   if (!f) return;
   const st = document.getElementById("annStatus");
+  st.style.cssText = "font-size:12.5px;color:#aaa;margin-bottom:8px";
   st.textContent = "Reading " + f.name + "…";
   try {
     let devs;
     if (/\.pdf$/i.test(f.name)) devs = await annParsePdf(await f.arrayBuffer());
     else if (/\.(xlsx|xlsm)$/i.test(f.name)) devs = await annParseXlsxInput(await f.arrayBuffer());
-    else devs = annParseDelim(await f.text());
+    else { const txt = await f.text(); devs = annIsF4000(txt) ? annParseF4000(txt) : annParseDelim(txt); }
     const all = devs.length;
-    devs = devs.filter(d => annOneDec(d.pt));
+    const f4 = !!(devs.length && devs[0].f4);
+    devs = devs.filter(d => d.f4 ? true : annOneDec(d.pt));
     annDevices = devs; annSrcFile = f.name;
     document.getElementById("annSrcName").textContent = f.name;
     if (!devs.length) {
-      st.textContent = "No one-decimal points found (" + all + " rows read). Try the panel program's text or spreadsheet export.";
+      annSay(false, "0 usable devices read from " + f.name + " (" + all + " rows scanned) — that is why the export buttons stay greyed out. The converter reads MX1 program report PDFs, F4000/MX4428 text config dumps, tab/CSV exports and xlsx point lists. If this file is a panel format it doesn't know yet, keep the file and report it so it can be added.");
       document.getElementById("annTypes").style.display = "none";
       annSetButtons();
       return;
     }
-    st.textContent = all + " points read → " + devs.length + " with exactly one decimal point.";
+    annSay(true, f4
+      ? all + " rows scanned → " + devs.length + " panel devices found. Tick what should go into the workbook, then export below."
+      : all + " points read → " + devs.length + " with exactly one decimal point. Tick the device types below, then export.");
     annTypeState = {};
     devs.forEach(d => {
-      const t = d.type || "(no type)";
-      if (!annTypeState[t]) annTypeState[t] = { n: 0, on: !ANN_AUX.test(t) };
-      annTypeState[t].n++;
+      if (!d.grp) d.grp = ANN_AUX.test(d.type || "") ? "aux" : "det";
+      const k = d.grp + "|" + (d.type || "(no type)");
+      if (!annTypeState[k]) annTypeState[k] = { n: 0, grp: d.grp, type: d.type || "(no type)", on: d.grp === "det" ? !ANN_AUX.test(d.type || "") : false };
+      annTypeState[k].n++;
+      if (d.pre) annTypeState[k].on = true;
     });
     annRenderTypes();
   } catch (err) {
-    st.textContent = "Could not read that file: " + (err && err.message ? err.message : err);
+    annSay(false, "Could not read that file: " + (err && err.message ? err.message : err) + " — if this is a panel report format the converter doesn't know yet, keep the file and report it so it can be added.");
     annDevices = null;
     document.getElementById("annTypes").style.display = "none";
     annSetButtons();
   }
 });
-function annSelected() { return (annDevices || []).filter(d => { const t = annTypeState && annTypeState[d.type || "(no type)"]; return t && t.on; }); }
+function annSelected() { return (annDevices || []).filter(d => { const t = annTypeState && annTypeState[(d.grp || "det") + "|" + (d.type || "(no type)")]; return t && t.on; }); }
 function annRenderTypes() {
   const box = document.getElementById("annTypeList");
-  const keys = Object.keys(annTypeState).sort((a, b) => annTypeState[b].n - annTypeState[a].n);
-  box.innerHTML = keys.map((k, i) => '<label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" data-t="' + i + '"' + (annTypeState[k].on ? " checked" : "") + '> <span style="flex:1">' + annHtmlEsc(k) + '</span><span style="color:#888">' + annTypeState[k].n + '</span></label>').join("");
+  const GRPS = [["det", "Detectors & devices"], ["input", "Call points & panel inputs"], ["aux", "Ancillary / outputs (not usually tested)"]];
+  const keys = Object.keys(annTypeState);
+  let html = "";
+  GRPS.forEach(g => {
+    const ks = keys.filter(k => annTypeState[k].grp === g[0]).sort((a, b) => annTypeState[b].n - annTypeState[a].n);
+    if (!ks.length) return;
+    html += '<div style="font-weight:700;font-size:12px;color:#9ab7c0;margin:6px 0 2px">' + g[1] + '</div>';
+    html += ks.map(k => '<label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" data-k="' + annXmlEsc(k) + '"' + (annTypeState[k].on ? " checked" : "") + '> <span style="flex:1">' + annHtmlEsc(annTypeState[k].type) + '</span><span style="color:#888">' + annTypeState[k].n + '</span></label>').join("");
+  });
+  box.innerHTML = html;
   box.querySelectorAll("input").forEach(inp => {
-    const key = keys[+inp.dataset.t];
+    const key = inp.dataset.k;
     inp.onchange = () => { annTypeState[key].on = inp.checked; annCount(); };
   });
   document.getElementById("annTypes").style.display = "block";
@@ -5944,7 +6093,7 @@ document.getElementById("annXlsx").onclick = async () => {
 document.getElementById("annPdf").onclick = () => {
   deliverFile(annPdfBlob(annSelected(), annSiteName()), "Fire Alarm Annuals 2026-2030 - " + annSiteName() + ".pdf", "application/pdf");
 };
-window.annTest = { parsePdf: annParsePdf, parseDelim: annParseDelim, parseXlsx: annParseXlsxInput, oneDec: annOneDec, unzip: annUnzip, inflate: annInflateEntry, buildXlsx: annBuildXlsx, pdfBlob: annPdfBlob, aux: ANN_AUX };
+window.annTest = { parsePdf: annParsePdf, parseDelim: annParseDelim, parseF4000: annParseF4000, isF4000: annIsF4000, parseXlsx: annParseXlsxInput, oneDec: annOneDec, unzip: annUnzip, inflate: annInflateEntry, buildXlsx: annBuildXlsx, pdfBlob: annPdfBlob, aux: ANN_AUX };
 
 /* ================= Boot ================= */
 resizeCanvas();
